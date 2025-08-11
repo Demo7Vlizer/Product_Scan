@@ -80,7 +80,7 @@ class _AddProductPageState extends State<AddProductPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Product added successfully!'),
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.grey.shade800,
           ),
         );
         Navigator.pop(context, true);
@@ -90,7 +90,7 @@ class _AddProductPageState extends State<AddProductPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.grey.shade800,
           ),
         );
       }
@@ -106,10 +106,35 @@ class _AddProductPageState extends State<AddProductPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: Text('Add New Product'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        title: Text(
+          'Add New Product',
+          style: TextStyle(
+            fontWeight: FontWeight.w400,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        centerTitle: true,
+        actions: [
+          Container(
+            margin: EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300, width: 1),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.qr_code_outlined, color: Colors.grey.shade600, size: 20),
+              onPressed: () {
+                Navigator.pushNamed(context, '/camera');
+              },
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
@@ -118,34 +143,50 @@ class _AddProductPageState extends State<AddProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Barcode display (read-only, visually distinct)
+              // Barcode display - Minimalistic
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: Colors.grey.shade200, width: 1),
                 ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.grey.shade300, width: 1),
+                      ),
+                      child: Icon(Icons.qr_code_outlined, color: Colors.grey.shade600, size: 16),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Scanned Barcode:',
+                            'QR Code Scanned:',
                       style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.blue.shade700,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8),
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 4),
                     SelectableText(
                       widget.barcode,
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade900,
-                        letterSpacing: 1.2,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -155,47 +196,128 @@ class _AddProductPageState extends State<AddProductPage> {
               SizedBox(height: 24),
 
               // Product name
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Product Name *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
                 decoration: InputDecoration(
-                  labelText: 'Product Name *',
                   hintText: 'Enter product name',
-                  prefixIcon: Icon(Icons.inventory),
-                  border: OutlineInputBorder(),
-                ),
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade500, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      isDense: true,
+                    ),
+                    style: TextStyle(fontSize: 14),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter product name';
                   }
                   return null;
                 },
+                  ),
+                ],
               ),
 
               SizedBox(height: 16),
 
               // MRP
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'MRP (Optional)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
               TextFormField(
                 controller: _mrpController,
                 decoration: InputDecoration(
-                  labelText: 'MRP (Optional)',
                   hintText: 'Enter MRP',
-                  prefixIcon: Icon(Icons.attach_money),
-                  border: OutlineInputBorder(),
-                ),
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      prefixText: '₹ ',
+                      prefixStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade500, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      isDense: true,
+                    ),
+                    style: TextStyle(fontSize: 14),
                 keyboardType: TextInputType.number,
+                  ),
+                ],
               ),
 
               SizedBox(height: 16),
 
               // Quantity
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Initial Quantity *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
               TextFormField(
                 controller: _quantityController,
                 decoration: InputDecoration(
-                  labelText: 'Initial Quantity *',
                   hintText: 'Enter quantity',
-                  prefixIcon: Icon(Icons.numbers),
-                  border: OutlineInputBorder(),
-                ),
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade500, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      isDense: true,
+                    ),
+                    style: TextStyle(fontSize: 14),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -206,6 +328,8 @@ class _AddProductPageState extends State<AddProductPage> {
                   }
                   return null;
                 },
+                  ),
+                ],
               ),
 
               SizedBox(height: 24),
@@ -213,17 +337,22 @@ class _AddProductPageState extends State<AddProductPage> {
               // Image section
               Text(
                 'Product Image (Optional)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
               ),
-              SizedBox(height: 12),
+              SizedBox(height: 8),
 
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
                   width: double.infinity,
-                  height: 200,
+                  height: 180,
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.white,
+                    border: Border.all(color: Colors.grey.shade300, width: 1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: _imageFile != null
@@ -234,15 +363,26 @@ class _AddProductPageState extends State<AddProductPage> {
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.camera_alt,
-                              size: 48,
-                              color: Colors.grey.shade400,
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300, width: 1),
+                              ),
+                              child: Icon(
+                                Icons.camera_alt_outlined,
+                                size: 24,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
-                            SizedBox(height: 8),
+                            SizedBox(height: 12),
                             Text(
                               'Tap to take photo',
-                              style: TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 14,
+                              ),
                             ),
                           ],
                         ),
@@ -255,36 +395,56 @@ class _AddProductPageState extends State<AddProductPage> {
               Row(
                 children: [
                   Expanded(
-                    child: SizedBox(
-                      height: 50,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _saveProduct,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.grey.shade700,
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey.shade300, width: 1),
+                        ),
                         ),
                         child: _isLoading
-                            ? CircularProgressIndicator(color: Colors.white)
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                color: Colors.grey.shade600,
+                                strokeWidth: 2,
+                              ),
+                            )
                             : Text(
                                 'Save Product',
-                                style: TextStyle(fontSize: 16),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
                               ),
                       ),
                     ),
                   ),
-                  SizedBox(width: 16),
+                  SizedBox(width: 12),
                   Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: OutlinedButton(
+                    child: TextButton(
                         onPressed: _isLoading
                             ? null
                             : () => Navigator.pop(context, false),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.blue,
-                          side: BorderSide(color: Colors.blue),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey.shade700,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey.shade300, width: 1),
                         ),
-                        child: Text('Cancel', style: TextStyle(fontSize: 16)),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),

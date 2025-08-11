@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:eopystocknew/models/product.dart';
 import 'package:eopystocknew/models/transaction.dart';
@@ -6,6 +8,19 @@ import 'package:eopystocknew/services/network/request_service.dart';
 
 class InventoryController {
   String get _baseUrl => RequestClient.baseUrl;
+  String get baseUrl => RequestClient.baseUrl;
+
+  // Check server connectivity
+  Future<bool> checkServerConnection() async {
+    try {
+      var response = await http.get(
+        Uri.parse('$_baseUrl/api/server-status'),
+      ).timeout(Duration(seconds: 5));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
 
   // Get all products
   Future<List<Product>> getProducts() async {
@@ -114,20 +129,45 @@ class InventoryController {
   // Update existing product
   Future<String> updateProduct(String barcode, Product product) async {
     try {
+      print('Updating product: $barcode');
+      print('Product data: ${json.encode(product.toJson())}');
+      
       var response = await http.put(
         Uri.parse('$_baseUrl/api/products/$barcode'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(product.toJson()),
       );
 
+      print('Update response status: ${response.statusCode}');
+      print('Update response body: ${response.body}');
+
       if (response.statusCode == 200) {
-        var data = json.decode(response.body);
-        return data['Result'];
+        try {
+          var data = json.decode(response.body);
+          return data['Result'] ?? 'Product updated successfully';
+        } catch (e) {
+          print('JSON decode error on success: $e');
+          return 'Product updated successfully';
+        }
       } else {
-        var data = json.decode(response.body);
-        throw Exception(data['error'] ?? 'Failed to update product');
+        // Handle non-200 responses more robustly
+        try {
+          var data = json.decode(response.body);
+          throw Exception(data['error'] ?? 'Failed to update product: ${response.statusCode}');
+        } catch (jsonError) {
+          // If JSON parsing fails, it might be an HTML error page
+          print('Failed to parse error response as JSON: $jsonError');
+          if (response.body.contains('<!doctype html>') || response.body.contains('<html>')) {
+            throw Exception('Server error: The server returned an HTML error page. Status: ${response.statusCode}');
+          } else {
+            throw Exception('Failed to update product: ${response.statusCode} - ${response.body}');
+          }
+        }
       }
     } catch (e) {
+      if (e.toString().contains('Exception:')) {
+        rethrow; // Re-throw our custom exceptions
+      }
       throw Exception('Network error: $e');
     }
   }
@@ -182,6 +222,228 @@ class InventoryController {
       }
     } catch (e) {
       throw Exception('Network error: $e');
+    }
+  }
+
+  // Customer Management
+  Future<List<Map<String, dynamic>>> getCustomers() async {
+    try {
+      var response = await http.get(Uri.parse('$_baseUrl/api/customers'));
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['Result'] ?? []);
+      } else {
+        throw Exception('Failed to load customers: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> searchCustomers(String query) async {
+    try {
+      var response = await http.get(
+        Uri.parse('$_baseUrl/api/customers/search/$query'),
+      );
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['Result'] ?? []);
+      } else {
+        throw Exception('Failed to search customers: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<String> addCustomer(Map<String, dynamic> customer) async {
+    try {
+      var response = await http.post(
+        Uri.parse('$_baseUrl/api/customers'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(customer),
+      );
+
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        return data['Result'];
+      } else {
+        var data = json.decode(response.body);
+        throw Exception(data['error'] ?? 'Failed to add customer');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getSalesSummary() async {
+    try {
+      var response = await http.get(Uri.parse('$_baseUrl/api/sales/summary'));
+      if (response.statusCode == 200) {
+        var data = json.decode(response.body);
+        return data;
+      } else {
+        throw Exception('Failed to load sales summary: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Update a transaction (for editing sales)
+  Future<void> updateTransaction(
+    int transactionId, {
+    required String recipientName,
+    required String recipientPhone,
+    required int quantity,
+    String? recipientPhoto,
+  }) async {
+    try {
+      final Map<String, dynamic> requestBody = {
+        'recipient_name': recipientName,
+        'recipient_phone': recipientPhone,
+        'quantity': quantity,
+      };
+      
+      // Only include photo if provided
+      if (recipientPhoto != null) {
+        requestBody['recipient_photo'] = recipientPhoto;
+      }
+      
+      var response = await http.put(
+        Uri.parse('$_baseUrl/api/transactions/$transactionId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(requestBody),
+      ).timeout(Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        try {
+          var data = json.decode(response.body);
+          throw Exception(data['error'] ?? 'Failed to update transaction');
+        } catch (jsonError) {
+          throw Exception('Server returned error ${response.statusCode}: ${response.reasonPhrase}');
+        }
+      }
+    } on http.ClientException {
+      throw Exception('Connection failed: Unable to reach server. Please check if the server is running and your network connection.');
+    } on SocketException {
+      throw Exception('Network error: Please check your internet connection and server status.');
+    } on TimeoutException {
+      throw Exception('Request timeout: Server is taking too long to respond. Please try again.');
+    } catch (e) {
+      if (e.toString().contains('WinError 233') || e.toString().contains('No process is on')) {
+        throw Exception('Server connection failed: The server appears to be offline. Please start the server and try again.');
+      }
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Update product quantity (for inventory adjustment)
+  Future<void> updateProductQuantity(String barcode, int newQuantity) async {
+    try {
+      var response = await http.put(
+        Uri.parse('$_baseUrl/api/products/$barcode/quantity'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'quantity': newQuantity,
+        }),
+      ).timeout(Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        try {
+          var data = json.decode(response.body);
+          throw Exception(data['error'] ?? 'Failed to update product quantity');
+        } catch (jsonError) {
+          throw Exception('Server returned error ${response.statusCode}: ${response.reasonPhrase}');
+        }
+      }
+    } on http.ClientException {
+      throw Exception('Connection failed: Unable to reach server. Please check if the server is running and your network connection.');
+    } on SocketException {
+      throw Exception('Network error: Please check your internet connection and server status.');
+    } on TimeoutException {
+      throw Exception('Request timeout: Server is taking too long to respond. Please try again.');
+    } catch (e) {
+      if (e.toString().contains('WinError 233') || e.toString().contains('No process is on')) {
+        throw Exception('Server connection failed: The server appears to be offline. Please start the server and try again.');
+      }
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Update customer information by phone number
+  Future<void> updateCustomerByPhone(String oldPhone, String newName, String newPhone) async {
+    try {
+      var response = await http.put(
+        Uri.parse('$_baseUrl/api/customers/phone/$oldPhone'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'name': newName,
+          'phone': newPhone,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        var data = json.decode(response.body);
+        throw Exception(data['error'] ?? 'Failed to update customer');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Delete transaction
+  Future<void> deleteTransaction(int transactionId) async {
+    try {
+      var response = await http.delete(
+        Uri.parse('$_baseUrl/api/transactions/$transactionId'),
+      ).timeout(Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        try {
+          var data = json.decode(response.body);
+          throw Exception(data['error'] ?? 'Failed to delete transaction');
+        } catch (jsonError) {
+          throw Exception('Server returned error ${response.statusCode}: ${response.reasonPhrase}');
+        }
+      }
+    } on http.ClientException {
+      throw Exception('Connection failed: Unable to reach server. Please check if the server is running and your network connection.');
+    } on SocketException {
+      throw Exception('Network error: Please check your internet connection and server status.');
+    } on TimeoutException {
+      throw Exception('Request timeout: Server is taking too long to respond. Please try again.');
+    } catch (e) {
+      if (e.toString().contains('WinError 233') || e.toString().contains('No process is on')) {
+        throw Exception('Server connection failed: The server appears to be offline. Please start the server and try again.');
+      }
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Update transaction with better error handling
+  Future<void> updateTransactionSafe(
+    int transactionId, {
+    required String recipientName,
+    required String recipientPhone,
+    required int quantity,
+    String? recipientPhoto,
+  }) async {
+    try {
+      await updateTransaction(
+        transactionId,
+        recipientName: recipientName,
+        recipientPhone: recipientPhone,
+        quantity: quantity,
+        recipientPhoto: recipientPhoto,
+      );
+    } catch (e) {
+      // If the specific transaction ID doesn't exist, that's okay for consolidated sales
+      if (e.toString().contains('404') || e.toString().contains('not found')) {
+        print('Transaction $transactionId not found - this is normal for consolidated sales');
+        return; // Don't throw error, just skip this update
+      }
+      rethrow; // Re-throw other errors
     }
   }
 }

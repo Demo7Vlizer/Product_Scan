@@ -73,17 +73,62 @@ class _ProductListPageState extends State<ProductListPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Product'),
-        content: Text('Are you sure you want to delete "${product.name}"? This action cannot be undone.'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        title: Text(
+          'Delete Product',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade800,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${product.name}"? This action cannot be undone.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.grey.shade300, width: 1),
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text('Delete'),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.red.shade200, width: 1),
+              ),
+            ),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.red.shade700,
+              ),
+            ),
           ),
         ],
       ),
@@ -117,55 +162,83 @@ class _ProductListPageState extends State<ProductListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: Text('Product List'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        title: Text(
+          'Product List',
+          style: TextStyle(
+            fontWeight: FontWeight.w400,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: Icon(Icons.refresh_outlined),
             onPressed: _loadProducts,
           ),
         ],
       ),
       body: Column(
         children: [
-          // Search bar
-          Padding(
+          // Minimal search bar
+          Container(
+            color: Colors.white,
             padding: EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search products...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300, width: 1),
               ),
-              onChanged: _filterProducts,
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search products...',
+                  hintStyle: TextStyle(color: Colors.grey.shade500),
+                  prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+                onChanged: _filterProducts,
+              ),
             ),
           ),
 
-          // Product count
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          // Minimal product count
+          Container(
+            color: Colors.white,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${_filteredProducts.length} products found',
+                  '${_filteredProducts.length} products',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,
                   ),
                 ),
                 if (_searchQuery.isNotEmpty)
-                  TextButton(
-                    onPressed: () {
-                      _filterProducts('');
-                    },
-                    child: Text('Clear'),
+                  GestureDetector(
+                    onTap: () => _filterProducts(''),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.grey.shade300, width: 1),
+                      ),
+                      child: Text(
+                        'Clear',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -203,84 +276,180 @@ class _ProductListPageState extends State<ProductListPage> {
                         itemCount: _filteredProducts.length,
                         itemBuilder: (context, index) {
                           final product = _filteredProducts[index];
-                          return Card(
-                            margin: EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                radius: 30,
-                                backgroundColor: Colors.blue.shade100,
-                                child: product.imagePath != null
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(30),
-                                        child: Image.network(
-                                          '${RequestClient.baseUrl}/uploads/${product.imagePath}',
-                                          width: 60,
-                                          height: 60,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Icon(
-                                              Icons.inventory,
-                                              color: Colors.blue,
-                                              size: 30,
-                                            );
-                                          },
+                          return Container(
+                            margin: EdgeInsets.only(bottom: 8),
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade200, width: 1),
+                            ),
+                            child: Row(
+                              children: [
+                                // Simple status indicator
+                                Container(
+                                  width: 4,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    color: (product.quantity ?? 0) > 0 
+                                        ? Colors.green.shade400 
+                                        : Colors.red.shade400,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                
+                                SizedBox(width: 12),
+                                
+                                // Product image
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.grey.shade300, width: 1),
+                                  ),
+                                  child: product.imagePath != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(7),
+                                          child: Image.network(
+                                            '${RequestClient.baseUrl}/uploads/${product.imagePath}',
+                                            width: 40,
+                                            height: 40,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Icon(
+                                                Icons.inventory_2_outlined,
+                                                color: Colors.grey.shade500,
+                                                size: 20,
+                                              );
+                                            },
+                                          ),
+                                        )
+                                      : Icon(
+                                          Icons.inventory_2_outlined,
+                                          color: Colors.grey.shade500,
+                                          size: 20,
                                         ),
-                                      )
-                                    : Icon(
-                                        Icons.inventory,
-                                        color: Colors.blue,
-                                        size: 30,
+                                ),
+                                
+                                SizedBox(width: 12),
+                                
+                                // Product details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        product.name ?? 'Unknown Product',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey.shade800,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                              ),
-                              title: Text(
-                                product.name ?? 'Unknown Product',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Barcode: ${product.barcode}'),
-                                  if (product.mrp != null)
-                                    Text('MRP: ₹${product.mrp}'),
-                                  Text('Quantity: ${product.quantity ?? 0}'),
-                                ],
-                              ),
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (value) {
-                                  if (value == 'edit') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => EditProductPage(product: product),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        product.barcode ?? '',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade500,
+                                          fontSize: 12,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ).then((_) => _loadProducts());
-                                  } else if (value == 'delete') {
-                                    _deleteProduct(product);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.edit, color: Colors.blue),
-                                        SizedBox(width: 8),
-                                        Text('Edit'),
-                                      ],
-                                    ),
+                                      SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          if (product.mrp != null) ...[
+                                            Text(
+                                              '₹${product.mrp?.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                color: Colors.green.shade700,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            SizedBox(width: 8),
+                                          ],
+                                          Container(
+                                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: (product.quantity ?? 0) > 0 
+                                                  ? Colors.green.shade50 
+                                                  : Colors.red.shade50,
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: (product.quantity ?? 0) > 0 
+                                                    ? Colors.green.shade200 
+                                                    : Colors.red.shade200, 
+                                                width: 0.5
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'Qty: ${product.quantity ?? 0}',
+                                              style: TextStyle(
+                                                color: (product.quantity ?? 0) > 0 
+                                                    ? Colors.green.shade700 
+                                                    : Colors.red.shade700,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.delete, color: Colors.red),
-                                        SizedBox(width: 8),
-                                        Text('Delete'),
-                                      ],
+                                ),
+                                
+                                // Action buttons
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => EditProductPage(product: product),
+                                          ),
+                                        ).then((_) => _loadProducts());
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.shade50,
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: Colors.blue.shade200, width: 0.5),
+                                        ),
+                                        child: Icon(
+                                          Icons.edit_outlined,
+                                          size: 16,
+                                          color: Colors.blue.shade600,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () => _deleteProduct(product),
+                                      child: Container(
+                                        padding: EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade50,
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: Colors.red.shade200, width: 0.5),
+                                        ),
+                                        child: Icon(
+                                          Icons.delete_outline,
+                                          size: 16,
+                                          color: Colors.red.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           );
                         },

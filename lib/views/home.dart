@@ -39,66 +39,65 @@ class _HomePageState extends State<HomePage> {
       );
     }
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: Text(
           "Eopy Stock Management",
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w400,
             fontSize: 20,
           ),
         ),
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
         elevation: 0,
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: Icon(Icons.notifications, color: Colors.white),
-            onPressed: () {
-              // TODO: Implement notifications
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Notifications coming soon!')),
-              );
-            },
+          Container(
+            margin: EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300, width: 1),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.notifications_outlined, color: Colors.grey.shade600, size: 20),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Notifications coming soon!'),
+                    backgroundColor: Colors.grey.shade800,
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade50, Colors.white],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.all(16),
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 
-                // Search Bar
+                // Minimal Search Bar
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300, width: 1),
                   ),
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search products, orders...',
-                      prefixIcon: Icon(Icons.search, color: Colors.grey),
+                      hintText: 'Search products...',
+                      hintStyle: TextStyle(color: Colors.grey.shade500),
+                      prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
+                        horizontal: 12,
+                        vertical: 12,
                       ),
                     ),
                     onChanged: (value) {
@@ -113,25 +112,25 @@ class _HomePageState extends State<HomePage> {
                 Text(
                   'Quick Actions',
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade800,
                   ),
                 ),
 
                 SizedBox(height: 16),
 
-                // Feature Grid
+                // Feature Grid - Two Columns
                 Expanded(
                   child: GridView.count(
                     crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.85,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.9,
                     children: [
                       _buildFeatureCard(
                         'Add Product',
-                        Icons.add_box,
+                        Icons.add_circle_outline,
                         Colors.green,
                         '/addProduct',
                         'Scan QR & add product',
@@ -146,42 +145,35 @@ class _HomePageState extends State<HomePage> {
                       ),
                       _buildFeatureCard(
                         'Scan QR Code',
-                        Icons.qr_code_scanner,
+                        Icons.qr_code_outlined,
                         Colors.blue,
                         '/camera',
                         'Scan products quickly',
                       ),
                       _buildFeatureCard(
                         'Product List',
-                        Icons.list,
+                        Icons.list_alt_outlined,
                         Colors.green,
                         '/products',
                         'View and edit products',
                       ),
                       _buildFeatureCard(
-                        'Orders',
-                        Icons.shopping_cart,
+                        'Multi-Item Sale',
+                        Icons.shopping_cart_outlined,
                         Colors.orange,
-                        '/order',
-                        'View and manage orders',
+                        '/multiItemSale',
+                        'Sell multiple products',
                       ),
                       _buildFeatureCard(
-                        'Create Order',
-                        Icons.add_shopping_cart,
+                        'Sales Dashboard',
+                        Icons.analytics_outlined,
                         Colors.purple,
-                        '/orderCreate',
-                        'Create new orders',
-                      ),
-                      _buildFeatureCard(
-                        'Users',
-                        Icons.people,
-                        Colors.teal,
-                        '/user',
-                        'Manage users',
+                        '/salesDashboard',
+                        'View sales analytics',
                       ),
                       _buildFeatureCard(
                         'Settings',
-                        Icons.settings,
+                        Icons.settings_outlined,
                         Colors.grey,
                         '/settings',
                         'App configuration',
@@ -190,7 +182,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ],
-            ),
           ),
         ),
       ),
@@ -208,49 +199,47 @@ class _HomePageState extends State<HomePage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           onTap: onTap ?? () => Navigator.pushNamed(context, route),
           child: Padding(
-            padding: EdgeInsets.all(12),
+            padding: EdgeInsets.all(16),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: EdgeInsets.all(10),
+                  padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: color.withOpacity(0.2), width: 1),
                   ),
-                  child: Icon(icon, size: 28, color: color),
+                  child: Icon(icon, size: 24, color: color),
                 ),
-                SizedBox(height: 8),
+                SizedBox(height: 12),
                 Text(
                   title,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade800,
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 2),
+                SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                  ),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

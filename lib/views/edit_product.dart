@@ -75,7 +75,7 @@ class _EditProductPageState extends State<EditProductPage> {
         quantity: int.parse(_quantityController.text),
         imagePath: _imageBase64 != null
             ? 'data:image/jpeg;base64,$_imageBase64'
-            : widget.product.imagePath,
+            : null, // Send null if no new image is selected
       );
 
       await _inventoryController.updateProduct(widget.product.barcode!, product);
@@ -111,17 +111,62 @@ class _EditProductPageState extends State<EditProductPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Product'),
-        content: Text('Are you sure you want to delete "${widget.product.name}"? This action cannot be undone.'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        title: Text(
+          'Delete Product',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade800,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${widget.product.name}"? This action cannot be undone.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.grey.shade300, width: 1),
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text('Delete'),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.red.shade200, width: 1),
+              ),
+            ),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.red.shade700,
+              ),
+            ),
           ),
         ],
       ),
@@ -167,15 +212,32 @@ class _EditProductPageState extends State<EditProductPage> {
   Widget build(BuildContext context) {
     final String imageUrl = '${RequestClient.baseUrl}/uploads/${widget.product.imagePath}';
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: Text('Edit Product'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        title: Text(
+          'Edit Product',
+          style: TextStyle(
+            fontWeight: FontWeight.w400,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        centerTitle: true,
         actions: [
-          IconButton(
-            icon: Icon(Icons.delete, color: Colors.red),
+          Container(
+            margin: EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade200, width: 1),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.red.shade600, size: 20),
             onPressed: _isLoading ? null : _deleteProduct,
             tooltip: 'Delete Product',
+            ),
           ),
         ],
       ),
@@ -186,28 +248,28 @@ class _EditProductPageState extends State<EditProductPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product info display
+              // Minimal barcode display
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: Colors.grey.shade200, width: 1),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.qr_code, color: Colors.blue, size: 20),
+                        Icon(Icons.qr_code_outlined, color: Colors.grey.shade600, size: 20),
                         SizedBox(width: 8),
                         Text(
-                          'Product Barcode:',
+                          'Product Barcode',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
@@ -217,10 +279,11 @@ class _EditProductPageState extends State<EditProductPage> {
                       widget.product.barcode ?? '',
                       style: TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade900,
-                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade800,
+                        letterSpacing: 0.5,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -229,47 +292,134 @@ class _EditProductPageState extends State<EditProductPage> {
               SizedBox(height: 24),
 
               // Product name
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Product Name *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
                 decoration: InputDecoration(
-                  labelText: 'Product Name *',
                   hintText: 'Enter product name',
-                  prefixIcon: Icon(Icons.inventory),
-                  border: OutlineInputBorder(),
-                ),
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    style: TextStyle(fontSize: 14),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter product name';
                   }
                   return null;
                 },
+                  ),
+                ],
               ),
 
               SizedBox(height: 16),
 
               // MRP
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'MRP (Optional)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
               TextFormField(
                 controller: _mrpController,
                 decoration: InputDecoration(
-                  labelText: 'MRP (Optional)',
                   hintText: 'Enter MRP',
-                  prefixIcon: Icon(Icons.attach_money),
-                  border: OutlineInputBorder(),
-                ),
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      prefixText: '₹ ',
+                      prefixStyle: TextStyle(color: Colors.green.shade700, fontSize: 14, fontWeight: FontWeight.w500),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    style: TextStyle(fontSize: 14),
                 keyboardType: TextInputType.number,
+                  ),
+                ],
               ),
 
               SizedBox(height: 16),
 
               // Quantity
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quantity *',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
               TextFormField(
                 controller: _quantityController,
                 decoration: InputDecoration(
-                  labelText: 'Quantity *',
                   hintText: 'Enter quantity',
-                  prefixIcon: Icon(Icons.shopping_cart),
-                  border: OutlineInputBorder(),
-                ),
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    style: TextStyle(fontSize: 14),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -280,6 +430,8 @@ class _EditProductPageState extends State<EditProductPage> {
                   }
                   return null;
                 },
+                  ),
+                ],
               ),
 
               SizedBox(height: 24),
@@ -287,27 +439,32 @@ class _EditProductPageState extends State<EditProductPage> {
               // Image section
               Text(
                 'Product Image (Optional)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
               ),
-              SizedBox(height: 12),
+              SizedBox(height: 8),
 
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
                   width: double.infinity,
-                  height: 200,
+                  height: 180,
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.white,
+                    border: Border.all(color: Colors.grey.shade300, width: 1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: _imageFile != null
                       ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(7),
                           child: Image.file(_imageFile!, fit: BoxFit.cover),
                         )
                       : widget.product.imagePath != null
                           ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(7),
                               child: Image.network(
                                 imageUrl,
                                 fit: BoxFit.cover,
@@ -316,14 +473,17 @@ class _EditProductPageState extends State<EditProductPage> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
-                                        Icons.camera_alt,
-                                        size: 48,
+                                        Icons.camera_alt_outlined,
+                                        size: 32,
                                         color: Colors.grey.shade400,
                                       ),
                                       SizedBox(height: 8),
                                       Text(
                                         'Tap to change photo',
-                                        style: TextStyle(color: Colors.grey.shade600),
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 14,
+                                        ),
                                       ),
                                     ],
                                   );
@@ -334,14 +494,17 @@ class _EditProductPageState extends State<EditProductPage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  Icons.camera_alt,
-                                  size: 48,
+                                  Icons.camera_alt_outlined,
+                                  size: 32,
                                   color: Colors.grey.shade400,
                                 ),
                                 SizedBox(height: 8),
                                 Text(
                                   'Tap to take photo',
-                                  style: TextStyle(color: Colors.grey.shade600),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ],
                             ),
@@ -353,18 +516,29 @@ class _EditProductPageState extends State<EditProductPage> {
               // Update button
               SizedBox(
                 width: double.infinity,
-                height: 50,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _updateProduct,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
                   ),
                   child: _isLoading
-                      ? CircularProgressIndicator(color: Colors.white)
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
                       : Text(
                           'Update Product',
-                          style: TextStyle(fontSize: 16),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                 ),
               ),

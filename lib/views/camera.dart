@@ -3,11 +3,15 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:eopystocknew/controllers/inventoryController.dart';
 import 'package:eopystocknew/models/product.dart';
 import 'package:eopystocknew/views/add_product.dart';
+import 'package:eopystocknew/views/sell_product_page.dart';
+import 'package:eopystocknew/views/multi_item_sale.dart';
+import 'package:eopystocknew/widgets/restock_dialog.dart';
 
 class CameraPage extends StatefulWidget {
-  CameraPage({Key? key, required this.title}) : super(key: key);
+  CameraPage({Key? key, required this.title, this.returnBarcodeDirectly = false}) : super(key: key);
 
   final String title;
+  final bool returnBarcodeDirectly; // If true, return barcode without showing product interface
 
   @override
   _CameraPageState createState() => _CameraPageState();
@@ -19,6 +23,8 @@ class _CameraPageState extends State<CameraPage> {
   Product? _scannedProduct;
   final InventoryController _inventoryController = InventoryController();
   bool _hasPermission = false;
+  bool _canScan = true;
+  DateTime? _lastScanTime;
 
   @override
   void initState() {
@@ -102,41 +108,65 @@ class _CameraPageState extends State<CameraPage> {
                         ),
                       )
                     else
-                      MobileScanner(
+                                              MobileScanner(
                         onDetect: (barcodeCapture) {
+                          // Prevent scanning if we can't scan or are already processing
+                          if (!_canScan || _isLoading) {
+                            return;
+                          }
+
                           print('=== SCANNER DEBUG ===');
                           print(
                             'Barcode detected: ${barcodeCapture.barcodes.length} barcodes',
                           );
-                          print('Barcodes: ${barcodeCapture.barcodes}');
 
                           if (barcodeCapture.barcodes.isNotEmpty) {
                             final String? code =
                                 barcodeCapture.barcodes.first.rawValue;
                             print('Raw barcode value: $code');
-                            print(
-                              'Code type: ${barcodeCapture.barcodes.first.type}',
-                            );
 
-                            if (code != null && !_isLoading) {
+                            if (code != null) {
+                              // Check if this is the same barcode we just scanned
+                              final now = DateTime.now();
+                              if (_lastScanTime != null && 
+                                  _scannedValue == code && 
+                                  now.difference(_lastScanTime!).inSeconds < 3) {
+                                print('Ignoring duplicate scan within 3 seconds');
+                                return;
+                              }
+
                               print('Processing barcode: $code');
+                              
+                              // Disable scanning temporarily
+                              _canScan = false;
+                              _lastScanTime = now;
+                              
                               if (mounted) {
                                 setState(() {
                                   _scannedValue = code;
                                   _isLoading = true;
                                 });
                               }
+                              
                               _handleScannedCode(code);
+                              
                               // Show success feedback
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Barcode detected: $code'),
-                                  backgroundColor: Colors.green,
-                                  duration: Duration(seconds: 2),
+                                  backgroundColor: Colors.grey.shade800,
+                                  duration: Duration(seconds: 1),
                                 ),
                               );
+                              
+                              // Re-enable scanning after 2 seconds
+                              Future.delayed(Duration(seconds: 2), () {
+                                if (mounted) {
+                                  _canScan = true;
+                                }
+                              });
                             } else {
-                              print('Code is null or already loading');
+                              print('Code is null');
                             }
                           } else {
                             print('No barcodes found in capture');
@@ -250,6 +280,38 @@ class _CameraPageState extends State<CameraPage> {
                           'MRP: ${_scannedProduct!.mrp != null ? '₹${_scannedProduct!.mrp}' : 'N/A'}',
                           style: TextStyle(fontSize: 14),
                         ),
+                        SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _scannedProduct!.quantity != null && _scannedProduct!.quantity! > 0
+                                    ? () => _showSellOptions()
+                                    : () => _showOutOfStockDialog(),
+                                icon: Icon(Icons.shopping_cart_checkout),
+                                label: Text('Sell'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _scannedProduct!.quantity != null && _scannedProduct!.quantity! > 0
+                                      ? Colors.green
+                                      : Colors.grey,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _restockProduct(),
+                                icon: Icon(Icons.add_box),
+                                label: Text('Restock'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -283,8 +345,21 @@ class _CameraPageState extends State<CameraPage> {
                           style: TextStyle(fontSize: 14),
                         ),
                         Text(
-                          'This product is not in our database',
+                          'This product is not in your inventory. Do you want to add this product?',
                           style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                        SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _addNewProduct(_scannedValue),
+                            icon: Icon(Icons.add),
+                            label: Text('Add This Product'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -309,6 +384,9 @@ class _CameraPageState extends State<CameraPage> {
                           setState(() {
                             _scannedValue = "";
                             _scannedProduct = null;
+                            _isLoading = false;
+                            _canScan = true;
+                            _lastScanTime = null;
                           });
                         }
                       },
@@ -371,6 +449,14 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> _handleScannedCode(String code) async {
     print('Handling scanned code: $code');
+    
+    // If we should return barcode directly, do so immediately
+    if (widget.returnBarcodeDirectly) {
+      print('Returning barcode directly: $code');
+      Navigator.pop(context, code);
+      return;
+    }
+    
     try {
       print('Making API request for barcode: $code');
       final product = await _inventoryController.getProduct(code);
@@ -389,42 +475,8 @@ class _CameraPageState extends State<CameraPage> {
           });
         }
 
-        // Show dialog to add product
-        bool? shouldAdd = await showDialog<bool>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text('Product Not Found'),
-              content: Text(
-                'This product is not in your inventory. Would you like to add it?',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text('Add Product'),
-                ),
-              ],
-            );
-          },
-        );
-
-        if (shouldAdd == true) {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddProductPage(barcode: code),
-            ),
-          );
-
-          if (result == true) {
-            // Product was added, refresh the scan
-            _handleScannedCode(code);
-          }
-        }
+        // Product not found - show in UI
+        print('Product not found for barcode: $code');
       }
     } catch (e) {
       print('Error handling scanned code: $e');
@@ -439,6 +491,150 @@ class _CameraPageState extends State<CameraPage> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  void _showSellOptions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.shopping_cart, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Sell Product'),
+          ],
+        ),
+        content: Text('How would you like to sell this product?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _sellSingleProduct();
+            },
+            icon: Icon(Icons.shopping_bag),
+            label: Text('Single Sale'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _sellMultipleProducts();
+            },
+            icon: Icon(Icons.shopping_cart),
+            label: Text('Multi-Item Sale'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sellSingleProduct() async {
+    if (_scannedProduct == null) return;
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SellProductPage(product: _scannedProduct!),
+      ),
+    );
+    if (result == true) {
+      _handleScannedCode(_scannedProduct!.barcode!);
+    }
+  }
+
+  void _sellMultipleProducts() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MultiItemSalePage(),
+      ),
+    );
+    if (result == true) {
+      _handleScannedCode(_scannedProduct!.barcode!);
+    }
+  }
+
+  void _showOutOfStockDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Out of Stock'),
+          ],
+        ),
+        content: Text(
+          'This product is currently out of stock. You can restock it or still process a sale (which will result in negative stock).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _restockProduct();
+            },
+            icon: Icon(Icons.add_box),
+            label: Text('Restock'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _sellSingleProduct();
+            },
+            icon: Icon(Icons.shopping_cart),
+            label: Text('Sell Anyway'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _restockProduct() async {
+    if (_scannedProduct == null) return;
+    
+    final result = await showRestockDialog(context, _scannedProduct!);
+    
+    if (result == true) {
+      // Refresh the product information
+      _handleScannedCode(_scannedProduct!.barcode!);
+    }
+  }
+
+  void _addNewProduct(String barcode) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddProductPage(barcode: barcode),
+      ),
+    );
+
+    if (result == true) {
+      // Product was added, refresh the scan
+      _handleScannedCode(barcode);
     }
   }
 }
