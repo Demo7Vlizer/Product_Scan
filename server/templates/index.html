@@ -1,3 +1,6 @@
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -682,6 +685,9 @@
                 <div class="tab" onclick="showTab('transactions')">
                     <i class="fas fa-shopping-cart"></i> Sales History
                 </div>
+                <div class="tab" onclick="showTab('find-products')">
+                    <i class="fas fa-map-marker-alt"></i> Find Product
+                </div>
                 <div class="tab" onclick="showTab('analytics')">
                     <i class="fas fa-chart-bar"></i> Analytics
                 </div>
@@ -710,6 +716,38 @@
                 </div>
                 <div id="transactionsList" class="transaction-list">
                     <div class="loading">Loading transactions...</div>
+                </div>
+            </div>
+            
+            <div id="find-products" class="tab-content">
+                <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <button class="refresh-btn" onclick="loadProductLocations()">
+                        <i class="fas fa-sync-alt"></i> Refresh Locations
+                    </button>
+                    <button class="refresh-btn" onclick="showAddLocationModal()" style="background: #28a745;">
+                        <i class="fas fa-plus"></i> Add Location
+                    </button>
+                </div>
+                
+                <!-- Search Bar for Find Products -->
+                <div class="search-bar" style="margin-bottom: 20px;">
+                    <input type="text" class="search-input" placeholder="🔍 Search product locations..." id="locationSearchInput" onkeyup="searchProductLocations()">
+                </div>
+                
+                <!-- Location Cards Grid -->
+                <div id="locationGrid" class="product-grid">
+                    <div class="loading">Loading product locations...</div>
+                </div>
+                
+                <!-- Pagination -->
+                <div id="locationPagination" style="display: none; text-align: center; margin-top: 20px;">
+                    <button class="refresh-btn" onclick="loadLocationPage(currentLocationPage - 1)" id="prevLocationBtn">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <span id="locationPageInfo" style="margin: 0 20px; color: #667eea; font-weight: bold;">Page 1 of 1</span>
+                    <button class="refresh-btn" onclick="loadLocationPage(currentLocationPage + 1)" id="nextLocationBtn">
+                        <i class="fas fa-chevron-right"></i> Next
+                    </button>
                 </div>
             </div>
             
@@ -814,6 +852,9 @@
         // Global variables
         let products = [];
         let transactions = [];
+        let productLocations = [];
+        let currentLocationPage = 1;
+        let totalLocationPages = 1;
         let inventoryChart = null;
         let transactionChart = null;
         
@@ -1137,7 +1178,7 @@
                 grid.innerHTML = products.map(product => `
                     <div class="product-card">
                         ${product.image_path ? 
-                            `<img src="/uploads/${product.image_path.split('/').pop()}" alt="${product.name}" class="product-image">` :
+                            `<img src="/uploads/${product.image_path}" alt="${product.name}" class="product-image">` :
                             `<div style="height: 220px; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #666;">
                                 <i class="fas fa-box" style="font-size: 3em; opacity: 0.5;"></i>
                             </div>`
@@ -1148,6 +1189,11 @@
                         <div class="product-details"><strong>Added:</strong> ${new Date(product.created_date).toLocaleDateString()}</div>
                         <div class="quantity-badge ${getQuantityClass(product.quantity)}">
                             <i class="fas fa-layer-group"></i> Quantity: ${product.quantity || 0}
+                        </div>
+                        <div style="margin-top: 15px; display: flex; gap: 8px;">
+                            <button onclick="viewProductDetails('${product.barcode}')" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                                <i class="fas fa-eye"></i> View Details
+                            </button>
                         </div>
                     </div>
                 `).join('');
@@ -1644,6 +1690,1292 @@
                 }, 3000);
             }
         }
+
+        // Product Location Management Functions
+        let locationSearchTimeout;
+        
+        // Load product locations
+        async function loadProductLocations(page = 1) {
+            const grid = document.getElementById('locationGrid');
+            const pagination = document.getElementById('locationPagination');
+            
+            if (page === 1) {
+                grid.innerHTML = '<div class="loading">Loading product locations...</div>';
+            }
+            
+            try {
+                const response = await fetch(`/api/product-locations?page=${page}&per_page=12`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    productLocations = data.Result || [];
+                    currentLocationPage = data.page || 1;
+                    totalLocationPages = data.total_pages || 1;
+                    
+                    displayProductLocations(productLocations);
+                    updateLocationPagination();
+                } else {
+                    throw new Error(data.error || 'Failed to load locations');
+                }
+            } catch (error) {
+                grid.innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> Error loading locations: ${error.message}</div>`;
+                console.error('Error loading locations:', error);
+            }
+        }
+        
+        // Display product locations
+        function displayProductLocations(locations) {
+            const grid = document.getElementById('locationGrid');
+            
+            if (locations.length === 0) {
+                grid.innerHTML = '<div class="no-data"><i class="fas fa-map-marker-alt"></i><br>No product locations found</div>';
+                return;
+            }
+            
+            grid.innerHTML = locations.map(location => `
+                <div class="product-card location-card">
+                    ${location.image_path ? 
+                        `<img src="/uploads/${location.image_path}" alt="${location.product_name}" class="product-image location-image" onclick="viewLocationPhoto('${location.image_path}', '${location.product_name}', '${location.location_name}')">` :
+                        `<div style="height: 220px; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #666;">
+                            <i class="fas fa-map-marker-alt" style="font-size: 3em; opacity: 0.5;"></i>
+                        </div>`
+                    }
+                    <div class="product-name">${location.product_name}</div>
+                    <div class="product-details"><strong><i class="fas fa-map-marker-alt"></i> Location:</strong> ${location.location_name}</div>
+                    ${location.notes ? `<div class="product-details"><strong><i class="fas fa-sticky-note"></i> Notes:</strong> ${location.notes}</div>` : ''}
+                    <div class="product-details"><strong><i class="fas fa-calendar"></i> Updated:</strong> ${new Date(location.updated_date).toLocaleDateString()}</div>
+                    <div style="margin-top: 15px; display: flex; gap: 6px;">
+                        <button onclick="viewLocationDetails(${location.id})" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button onclick="editLocation(${location.id})" style="flex: 1; padding: 8px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button onclick="deleteLocation(${location.id}, '${location.product_name}')" style="flex: 1; padding: 8px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Update pagination
+        function updateLocationPagination() {
+            const pagination = document.getElementById('locationPagination');
+            const pageInfo = document.getElementById('locationPageInfo');
+            const prevBtn = document.getElementById('prevLocationBtn');
+            const nextBtn = document.getElementById('nextLocationBtn');
+            
+            if (totalLocationPages > 1) {
+                pagination.style.display = 'block';
+                pageInfo.textContent = `Page ${currentLocationPage} of ${totalLocationPages}`;
+                prevBtn.disabled = currentLocationPage <= 1;
+                nextBtn.disabled = currentLocationPage >= totalLocationPages;
+                
+                prevBtn.style.opacity = currentLocationPage <= 1 ? '0.5' : '1';
+                nextBtn.style.opacity = currentLocationPage >= totalLocationPages ? '0.5' : '1';
+            } else {
+                pagination.style.display = 'none';
+            }
+        }
+        
+        // Load specific page
+        function loadLocationPage(page) {
+            if (page >= 1 && page <= totalLocationPages && page !== currentLocationPage) {
+                loadProductLocations(page);
+            }
+        }
+        
+        // Search product locations
+        function searchProductLocations() {
+            const query = document.getElementById('locationSearchInput').value.trim();
+            
+            clearTimeout(locationSearchTimeout);
+            locationSearchTimeout = setTimeout(async () => {
+                if (query.length === 0) {
+                    loadProductLocations();
+                    return;
+                }
+                
+                if (query.length < 2) return;
+                
+                const grid = document.getElementById('locationGrid');
+                grid.innerHTML = '<div class="loading">Searching locations...</div>';
+                
+                try {
+                    const response = await fetch(`/api/product-locations/search/${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        displayProductLocations(data.Result || []);
+                        document.getElementById('locationPagination').style.display = 'none';
+                    } else {
+                        throw new Error(data.error || 'Search failed');
+                    }
+                } catch (error) {
+                    grid.innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> Search error: ${error.message}</div>`;
+                }
+            }, 300);
+        }
+        
+        // View location photo
+        function viewLocationPhoto(imagePath, productName, locationName) {
+            if (!imagePath) return;
+            
+            // Create modal (similar to customer photo modal but for locations)
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                cursor: pointer;
+            `;
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: white;
+                border-radius: 20px;
+                padding: 0;
+                max-width: 90%;
+                max-height: 90%;
+                position: relative;
+                cursor: default;
+                box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            `;
+            
+            const header = document.createElement('div');
+            header.style.cssText = `
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                padding: 20px;
+                border-radius: 20px 20px 0 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            `;
+            
+            header.innerHTML = `
+                <div style="display: flex; align-items: center;">
+                    <i class="fas fa-map-marker-alt" style="margin-right: 12px; font-size: 20px;"></i>
+                    <div>
+                        <div style="font-size: 18px; font-weight: bold;">Product Location</div>
+                        <div style="font-size: 14px; opacity: 0.9;">${productName} - ${locationName}</div>
+                    </div>
+                </div>
+                <button onclick="document.body.removeChild(this.closest('.modal-overlay'))" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 8px; border-radius: 50%; transition: background 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='none'">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            const imageContainer = document.createElement('div');
+            imageContainer.style.cssText = `
+                padding: 20px;
+                text-align: center;
+                max-height: 70vh;
+                overflow: hidden;
+            `;
+            
+            const img = document.createElement('img');
+            img.style.cssText = `
+                max-width: 100%;
+                max-height: 100%;
+                border-radius: 10px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            `;
+            
+            const cacheBuster = new Date().getTime();
+            img.src = `/uploads/${imagePath}?t=${cacheBuster}`;
+            
+            img.onerror = () => {
+                imageContainer.innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #666;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: #ff6b6b;"></i>
+                        <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">Failed to load image</div>
+                        <div style="font-size: 14px;">The location photo could not be displayed</div>
+                    </div>
+                `;
+            };
+            
+            imageContainer.appendChild(img);
+            modalContent.appendChild(header);
+            modalContent.appendChild(imageContainer);
+            modal.appendChild(modalContent);
+            modal.className = 'modal-overlay';
+            
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
+            
+            modalContent.onclick = (e) => e.stopPropagation();
+            
+            document.body.appendChild(modal);
+        }
+        
+        // Show add location modal
+        function showAddLocationModal() {
+            // Create add location modal
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                overflow-y: auto;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 15px; padding: 0; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; margin: 20px;">
+                    <div style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 20px; border-radius: 15px 15px 0 0; position: sticky; top: 0; z-index: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center;">
+                                <i class="fas fa-plus-circle" style="margin-right: 12px; font-size: 20px;"></i>
+                                <div>
+                                    <div style="font-size: 18px; font-weight: bold;">Add Product Location</div>
+                                    <div style="font-size: 14px; opacity: 0.9;">Save a new product location with photo</div>
+                                </div>
+                            </div>
+                            <button onclick="document.body.removeChild(this.closest('.modal-overlay'))" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 8px; border-radius: 50%;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 20px;">
+                        <form id="addLocationForm" onsubmit="handleAddLocation(event)">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Product Name *</label>
+                                <input type="text" id="locationProductName" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;" placeholder="Enter product name">
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Location Name *</label>
+                                <input type="text" id="locationName" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;" placeholder="e.g., Aisle 3, Shelf B">
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Notes (Optional)</label>
+                                <textarea id="locationNotes" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; min-height: 80px;" placeholder="Additional details..."></textarea>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333;">Location Photo</label>
+                                <div style="border: 2px dashed #ddd; border-radius: 8px; padding: 20px; text-align: center; background: #f9f9f9;">
+                                    <div id="imagePreview" style="display: none;">
+                                        <img id="previewImg" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
+                                        <div>
+                                            <button type="button" onclick="document.getElementById('imageInput').click()" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 6px; margin-right: 8px; cursor: pointer;">Change Photo</button>
+                                            <button type="button" onclick="clearImage()" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Remove</button>
+                                        </div>
+                                    </div>
+                                    <div id="imagePlaceholder">
+                                        <i class="fas fa-camera" style="font-size: 48px; color: #ccc; margin-bottom: 10px;"></i>
+                                        <div style="margin-bottom: 10px; color: #666;">Click to add a photo</div>
+                                        <button type="button" onclick="document.getElementById('imageInput').click()" style="background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer;">
+                                            <i class="fas fa-plus"></i> Add Photo
+                                        </button>
+                                    </div>
+                                    <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 10px;">
+                                <button type="button" onclick="document.body.removeChild(this.closest('.modal-overlay'))" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer;">Cancel</button>
+                                <button type="submit" id="saveLocationBtn" style="flex: 2; padding: 12px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                                    <i class="fas fa-save"></i> Save Location
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            modal.className = 'modal-overlay';
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
+            
+            document.body.appendChild(modal);
+        }
+        
+        let selectedImageBase64 = null;
+        
+        // Handle image selection
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    selectedImageBase64 = e.target.result;
+                    document.getElementById('previewImg').src = selectedImageBase64;
+                    document.getElementById('imagePreview').style.display = 'block';
+                    document.getElementById('imagePlaceholder').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // Clear selected image
+        function clearImage() {
+            selectedImageBase64 = null;
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('imagePlaceholder').style.display = 'block';
+            document.getElementById('imageInput').value = '';
+        }
+        
+        // Handle add location form submission
+        async function handleAddLocation(event) {
+            event.preventDefault();
+            
+            const productName = document.getElementById('locationProductName').value.trim();
+            const locationName = document.getElementById('locationName').value.trim();
+            const notes = document.getElementById('locationNotes').value.trim();
+            const saveBtn = document.getElementById('saveLocationBtn');
+            
+            if (!productName || !locationName) {
+                alert('Please fill in product name and location name');
+                return;
+            }
+            
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            saveBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/product-locations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        product_name: productName,
+                        location_name: locationName,
+                        notes: notes,
+                        image_data: selectedImageBase64
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Location saved successfully!');
+                    document.body.removeChild(document.querySelector('.modal-overlay'));
+                    loadProductLocations(); // Refresh the list
+                } else {
+                    throw new Error(result.error || 'Failed to save location');
+                }
+            } catch (error) {
+                alert(`Error saving location: ${error.message}`);
+            } finally {
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Location';
+                saveBtn.disabled = false;
+            }
+        }
+        
+        // Delete location
+        async function deleteLocation(locationId, productName) {
+            if (!confirm(`Are you sure you want to delete the location for "${productName}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/product-locations/${locationId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Location deleted successfully!');
+                    loadProductLocations(); // Refresh the list
+                } else {
+                    throw new Error(result.error || 'Failed to delete location');
+                }
+            } catch (error) {
+                alert(`Error deleting location: ${error.message}`);
+            }
+        }
+        
+        // Edit location (placeholder - could be expanded)
+        async function editLocation(locationId) {
+            try {
+                showLoadingModal('Loading location details...');
+                const response = await fetch(`/api/product-locations/${locationId}`);
+                const data = await response.json();
+                closeLoadingModal();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load location details');
+                }
+                
+                showEditLocationModal(data.Result);
+            } catch (error) {
+                closeLoadingModal();
+                alert(`Error loading location details: ${error.message}`);
+            }
+        }
+        
+        // Show edit location modal
+        function showEditLocationModal(location) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.8); display: flex; justify-content: center;
+                align-items: center; z-index: 10000; overflow-y: auto; padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 20px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+                    <div style="background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; padding: 25px; border-radius: 20px 20px 0 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center;">
+                                <i class="fas fa-edit" style="margin-right: 15px; font-size: 24px;"></i>
+                                <div>
+                                    <div style="font-size: 22px; font-weight: bold;">Edit Location</div>
+                                    <div style="font-size: 14px; opacity: 0.9;">${location.product_name}</div>
+                                </div>
+                            </div>
+                            <button onclick="closeEditModal()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 8px; border-radius: 50%;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 25px;">
+                        <form id="editLocationForm" onsubmit="handleEditLocation(event, ${location.id})">
+                            ${location.image_path ? 
+                                `<div style="margin-bottom: 20px; text-align: center;">
+                                    <div style="font-weight: bold; margin-bottom: 10px;">Current Photo</div>
+                                    <img src="/uploads/${location.image_path}" style="max-width: 200px; border-radius: 10px;">
+                                </div>` : ''
+                            }
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: bold;">Product Name *</label>
+                                <input type="text" id="editProductName" value="${location.product_name}" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px;">
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: bold;">Location Name *</label>
+                                <input type="text" id="editLocationName" value="${location.location_name}" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px;">
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: bold;">Notes</label>
+                                <textarea id="editLocationNotes" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; min-height: 80px;">${location.notes || ''}</textarea>
+                            </div>
+                            
+                            <div style="margin-bottom: 25px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: bold;">New Photo (Optional)</label>
+                                <input type="file" id="editImageInput" accept="image/*" onchange="handleEditImageSelect(event)" style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 8px;">
+                            </div>
+                            
+                            <div style="display: flex; gap: 12px;">
+                                <button type="button" onclick="closeEditModal()" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer;">Cancel</button>
+                                <button type="submit" id="updateLocationBtn" style="flex: 2; padding: 12px; background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                                    <i class="fas fa-save"></i> Update Location
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            modal.className = 'edit-modal';
+            document.body.appendChild(modal);
+        }
+        
+        let editSelectedImageBase64 = null;
+        
+        function closeEditModal() {
+            const modal = document.querySelector('.edit-modal');
+            if (modal) document.body.removeChild(modal);
+            editSelectedImageBase64 = null;
+        }
+        
+        function handleEditImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    editSelectedImageBase64 = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        async function handleEditLocation(event, locationId) {
+            event.preventDefault();
+            const updateBtn = document.getElementById('updateLocationBtn');
+            updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            updateBtn.disabled = true;
+            
+            try {
+                const requestData = {
+                    product_name: document.getElementById('editProductName').value.trim(),
+                    location_name: document.getElementById('editLocationName').value.trim(),
+                    notes: document.getElementById('editLocationNotes').value.trim()
+                };
+                
+                if (editSelectedImageBase64) {
+                    requestData.image_data = editSelectedImageBase64;
+                }
+                
+                const response = await fetch(`/api/product-locations/${locationId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Location updated successfully!');
+                    closeEditModal();
+                    loadProductLocations();
+                } else {
+                    throw new Error(result.error || 'Failed to update location');
+                }
+            } catch (error) {
+                alert(`Error updating location: ${error.message}`);
+            } finally {
+                updateBtn.innerHTML = '<i class="fas fa-save"></i> Update Location';
+                updateBtn.disabled = false;
+            }
+        }
+        
+        // View location details (like Flutter app)
+        async function viewLocationDetails(locationId) {
+            try {
+                showLoadingModal('Loading location details...');
+                const response = await fetch(`/api/product-locations/${locationId}`);
+                const data = await response.json();
+                closeLoadingModal();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load location details');
+                }
+                
+                // Debug: Log the received data
+                console.log('Location data received:', data.Result);
+                console.log('Image paths:', data.Result.image_paths);
+                console.log('Single image path:', data.Result.image_path);
+                
+                showLocationDetailsModal(data.Result);
+            } catch (error) {
+                closeLoadingModal();
+                alert(`Error loading location details: ${error.message}`);
+            }
+        }
+        
+        // Show location details modal (Flutter-style)
+        function showLocationDetailsModal(location) {
+            // Get all images (support multiple images like Flutter app)
+            const allImages = location.image_paths && location.image_paths.length > 0 
+                ? location.image_paths 
+                : (location.image_path ? [location.image_path] : []);
+            
+            // Debug: Log the images found
+            console.log('Processing images for modal:');
+            console.log('- location.image_paths:', location.image_paths);
+            console.log('- location.image_path:', location.image_path);
+            console.log('- Final allImages array:', allImages);
+            console.log('- Number of images:', allImages.length);
+            
+            let currentImageIndex = 0;
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.9); display: flex; justify-content: center;
+                align-items: center; z-index: 10000; overflow-y: auto; padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 25px; max-width: 700px; width: 100%; max-height: 95vh; overflow-y: auto; position: relative; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+                    <!-- Header with gradient (like Flutter app) -->
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 25px 25px 0 0; position: relative;">
+                        <div style="position: relative; z-index: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h2 style="margin: 0; font-size: 24px; font-weight: bold;">${location.product_name}</h2>
+                                <button onclick="closeLocationDetailsModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; cursor: pointer; padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                    ✕
+                                </button>
+                            </div>
+                            <div style="display: flex; align-items: center; color: rgba(255,255,255,0.9);">
+                                <i class="fas fa-map-marker-alt" style="margin-right: 8px;"></i>
+                                <span style="font-size: 16px;">${location.location_name}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Photo Gallery Section (like Flutter app) -->
+                    ${allImages.length > 0 ? `
+                        <div style="padding: 25px 25px 15px 25px;">
+                            <div style="position: relative; text-align: center; margin-bottom: 20px;">
+                                <!-- Main large photo -->
+                                <img id="mainLocationPhoto" src="/uploads/${allImages[0]}" style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); cursor: pointer;" onclick="openGalleryFullscreen()">
+                                
+                                <!-- Navigation arrows (if multiple images) -->
+                                ${allImages.length > 1 ? `
+                                    <button onclick="changeMainImage(-1)" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); color: white; border: none; padding: 12px; border-radius: 50%; cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'">
+                                        <i class="fas fa-chevron-left" style="font-size: 16px;"></i>
+                                    </button>
+                                    <button onclick="changeMainImage(1)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); color: white; border: none; padding: 12px; border-radius: 50%; cursor: pointer; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'">
+                                        <i class="fas fa-chevron-right" style="font-size: 16px;"></i>
+                                    </button>
+                                ` : ''}
+                                
+                                <!-- Photo counter overlay (like Flutter app) -->
+                                <div id="photoCounter" style="position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 20px; font-size: 14px; font-weight: bold;">
+                                    <i class="fas fa-images" style="margin-right: 6px;"></i>
+                                    1 of ${allImages.length}
+                                </div>
+                                
+                                <!-- Photo controls (top-right) -->
+                                <div style="position: absolute; top: 15px; right: 15px; display: flex; gap: 8px;">
+                                    <!-- Rotate left button -->
+                                    <button onclick="rotateCurrentImage(-90)" style="background: rgba(0,0,0,0.6); color: white; border: none; padding: 8px; border-radius: 50%; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'" title="Rotate Left">
+                                        <i class="fas fa-undo" style="font-size: 14px;"></i>
+                                    </button>
+                                    
+                                    <!-- Rotate right button -->
+                                    <button onclick="rotateCurrentImage(90)" style="background: rgba(0,0,0,0.6); color: white; border: none; padding: 8px; border-radius: 50%; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'" title="Rotate Right">
+                                        <i class="fas fa-redo" style="font-size: 14px;"></i>
+                                    </button>
+                                    
+                                    <!-- View full screen button -->
+                                    <button onclick="openGalleryFullscreen()" style="background: rgba(0,0,0,0.6); color: white; border: none; padding: 8px; border-radius: 50%; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0,0,0,0.8)'" onmouseout="this.style.background='rgba(0,0,0,0.6)'" title="Fullscreen">
+                                        <i class="fas fa-expand" style="font-size: 14px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Thumbnail Navigation (like Flutter app) -->
+                            ${allImages.length > 1 ? `
+                                <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px; overflow-x: auto; padding: 10px 0;">
+                                    ${allImages.map((imagePath, index) => `
+                                        <img src="/uploads/${imagePath}" onclick="setMainImage(${index})" style="width: 80px; height: 60px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 3px solid ${index === 0 ? '#667eea' : 'transparent'}; transition: all 0.3s ease;" class="thumbnail-image" data-index="${index}">
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : `
+                        <div style="padding: 25px; text-align: center;">
+                            <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 15px; padding: 60px; color: #666;">
+                                <i class="fas fa-image" style="font-size: 64px; margin-bottom: 20px; opacity: 0.5;"></i>
+                                <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">No Photo Available</div>
+                                <div style="font-size: 14px;">No image has been added for this location</div>
+                            </div>
+                        </div>
+                    `}
+                    
+                    <!-- Details Section (like Flutter app) -->
+                    <div style="padding: 0 25px 25px 25px;">
+                        <!-- Notes Section -->
+                        ${location.notes ? `
+                            <div style="background: #f8f9fa; border-radius: 15px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+                                <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                    <i class="fas fa-sticky-note" style="color: #667eea; margin-right: 10px; font-size: 18px;"></i>
+                                    <h3 style="margin: 0; color: #333; font-size: 16px; font-weight: bold;">Notes</h3>
+                                </div>
+                                <p style="margin: 0; color: #555; line-height: 1.5; font-size: 15px;">${location.notes}</p>
+                            </div>
+                        ` : ''}
+                        
+                        <!-- Information Grid -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <div style="background: #f8f9fa; border-radius: 12px; padding: 16px; text-align: center; border-left: 4px solid #28a745;">
+                                <div style="font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Added</div>
+                                <div style="font-size: 16px; color: #333; font-weight: bold;">
+                                    <i class="fas fa-calendar-plus" style="margin-right: 6px; color: #28a745;"></i>
+                                    ${new Date(location.created_date).toLocaleDateString()}
+                                </div>
+                                <div style="font-size: 12px; color: #888; margin-top: 4px;">${new Date(location.created_date).toLocaleTimeString()}</div>
+                            </div>
+                            
+                            <div style="background: #f8f9fa; border-radius: 12px; padding: 16px; text-align: center; border-left: 4px solid #ffc107;">
+                                <div style="font-size: 14px; color: #666; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Updated</div>
+                                <div style="font-size: 16px; color: #333; font-weight: bold;">
+                                    <i class="fas fa-clock" style="margin-right: 6px; color: #ffc107;"></i>
+                                    ${new Date(location.updated_date).toLocaleDateString()}
+                                </div>
+                                <div style="font-size: 12px; color: #888; margin-top: 4px;">${new Date(location.updated_date).toLocaleTimeString()}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="closeLocationDetailsModal()" style="flex: 1; padding: 14px; background: #6c757d; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: all 0.3s ease;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">
+                                <i class="fas fa-times"></i> Close
+                            </button>
+                            <button onclick="editLocation(${location.id}); closeLocationDetailsModal();" style="flex: 1; padding: 14px; background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: all 0.3s ease;">
+                                <i class="fas fa-edit"></i> Edit Location
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.className = 'location-details-modal';
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    closeLocationDetailsModal();
+                }
+            };
+            
+            // Store allImages and functions in modal for access
+            modal.allImages = allImages;
+            modal.currentImageIndex = currentImageIndex;
+            modal.locationData = location;
+            
+            // Define navigation functions on the modal
+            window.changeMainImage = function(direction) {
+                const modal = document.querySelector('.location-details-modal');
+                if (!modal || !modal.allImages) return;
+                
+                modal.currentImageIndex += direction;
+                if (modal.currentImageIndex < 0) modal.currentImageIndex = modal.allImages.length - 1;
+                if (modal.currentImageIndex >= modal.allImages.length) modal.currentImageIndex = 0;
+                
+                updateMainImage(modal.currentImageIndex);
+            };
+            
+            window.setMainImage = function(index) {
+                const modal = document.querySelector('.location-details-modal');
+                if (!modal || !modal.allImages) return;
+                
+                modal.currentImageIndex = index;
+                updateMainImage(index);
+            };
+            
+            window.openGalleryFullscreen = function(startIndex) {
+                console.log('openGalleryFullscreen called with startIndex:', startIndex);
+                const modal = document.querySelector('.location-details-modal');
+                if (!modal || !modal.allImages) {
+                    console.error('Modal or allImages not found:', { modal: !!modal, allImages: modal?.allImages });
+                    return;
+                }
+                
+                // Use the provided startIndex, or fall back to the modal's current index, or default to 0
+                const indexToUse = typeof startIndex !== 'undefined' ? startIndex : modal.currentImageIndex || 0;
+                console.log('Using index:', indexToUse, 'from modal currentImageIndex:', modal.currentImageIndex);
+                
+                openFullscreenGallery(modal.allImages, modal.locationData.product_name, modal.locationData.location_name, indexToUse);
+            };
+            
+            // Photo rotation functionality
+            window.rotateCurrentImage = function(degrees) {
+                const modal = document.querySelector('.location-details-modal');
+                if (!modal) return;
+                
+                const mainPhoto = document.getElementById('mainLocationPhoto');
+                if (!mainPhoto) return;
+                
+                // Get current rotation or initialize it
+                const currentRotation = parseInt(mainPhoto.dataset.rotation || '0');
+                const newRotation = currentRotation + degrees;
+                
+                // Apply rotation
+                mainPhoto.style.transform = `rotate(${newRotation}deg)`;
+                mainPhoto.dataset.rotation = newRotation.toString();
+                
+                // Add smooth transition
+                mainPhoto.style.transition = 'transform 0.3s ease';
+                
+                console.log(`Rotated image ${degrees} degrees. New rotation: ${newRotation}deg`);
+            };
+            
+            function updateMainImage(index) {
+                const modal = document.querySelector('.location-details-modal');
+                if (!modal || !modal.allImages) return;
+                
+                const mainPhoto = document.getElementById('mainLocationPhoto');
+                const photoCounter = document.getElementById('photoCounter');
+                const thumbnails = document.querySelectorAll('.thumbnail-image');
+                
+                if (mainPhoto) {
+                    // Store current rotation
+                    const currentRotation = mainPhoto.dataset.rotation || '0';
+                    
+                    // Update image source
+                    mainPhoto.src = `/uploads/${modal.allImages[index]}`;
+                    
+                    // Reset rotation for new image
+                    mainPhoto.style.transform = 'rotate(0deg)';
+                    mainPhoto.dataset.rotation = '0';
+                    mainPhoto.style.transition = 'transform 0.3s ease';
+                }
+                
+                if (photoCounter) {
+                    photoCounter.innerHTML = `<i class="fas fa-images" style="margin-right: 6px;"></i>${index + 1} of ${modal.allImages.length}`;
+                }
+                
+                // Update thumbnail borders
+                thumbnails.forEach((thumb, i) => {
+                    thumb.style.border = i === index ? '3px solid #667eea' : '3px solid transparent';
+                });
+            }
+            
+            document.body.appendChild(modal);
+        }
+        
+        function closeLocationDetailsModal() {
+            const modal = document.querySelector('.location-details-modal');
+            if (modal) {
+                // Clean up global functions
+                delete window.changeMainImage;
+                delete window.setMainImage;
+                delete window.openGalleryFullscreen;
+                delete window.rotateCurrentImage;
+                document.body.removeChild(modal);
+            }
+        }
+        
+        // Open fullscreen gallery (like Flutter app)
+        function openFullscreenGallery(allImages, productName, locationName, startIndex = 0) {
+            console.log('openFullscreenGallery called with:', { 
+                allImages: allImages?.length, 
+                productName, 
+                locationName, 
+                startIndex 
+            });
+            
+            if (!allImages || allImages.length === 0) {
+                console.error('No images provided to fullscreen gallery');
+                return;
+            }
+            
+            let currentFullscreenIndex = startIndex;
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                background: black; display: flex; justify-content: center; align-items: center;
+                z-index: 10001; overflow: hidden;
+            `;
+            
+            modal.innerHTML = `
+                <!-- Header -->
+                <div style="position: absolute; top: 0; left: 0; right: 0; background: rgba(0,0,0,0.8); color: white; padding: 15px 20px; z-index: 10002; backdrop-filter: blur(10px);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">${productName}</div>
+                            <div style="font-size: 14px; opacity: 0.8; display: flex; align-items: center;">
+                                <i class="fas fa-map-marker-alt" style="margin-right: 6px;"></i>
+                                ${locationName}
+                            </div>
+                        </div>
+                        
+                        <!-- Fullscreen controls -->
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <!-- Rotate left button -->
+                            <button onclick="rotateFullscreenImage(-90)" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 18px; cursor: pointer; padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" title="Rotate Left">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                            
+                            <!-- Rotate right button -->
+                            <button onclick="rotateFullscreenImage(90)" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 18px; cursor: pointer; padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" title="Rotate Right">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            
+                            <!-- Close button -->
+                            <button onclick="closeFullscreenGallery()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; cursor: pointer; padding: 8px; border-radius: 50%; width: 44px; height: 44px;">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Navigation arrows (if multiple images) -->
+                ${allImages.length > 1 ? `
+                    <button onclick="changeFullscreenImage(-1)" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); color: white; border: none; padding: 15px; border-radius: 50%; cursor: pointer; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; z-index: 10002;">
+                        <i class="fas fa-chevron-left" style="font-size: 20px;"></i>
+                    </button>
+                    <button onclick="changeFullscreenImage(1)" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); color: white; border: none; padding: 15px; border-radius: 50%; cursor: pointer; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; z-index: 10002;">
+                        <i class="fas fa-chevron-right" style="font-size: 20px;"></i>
+                    </button>
+                ` : ''}
+                
+                <!-- Main Image -->
+                <img id="fullscreenMainImage" src="/uploads/${allImages[startIndex]}" style="max-width: 100vw; max-height: 100vh; object-fit: contain;">
+                
+                <!-- Photo counter -->
+                <div id="fullscreenCounter" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 25px; font-size: 16px; font-weight: bold;">
+                    ${startIndex + 1} of ${allImages.length}
+                </div>
+            `;
+            
+            modal.className = 'fullscreen-gallery-modal';
+            modal.onclick = () => closeFullscreenGallery();
+            modal.allImages = allImages;
+            modal.currentFullscreenIndex = currentFullscreenIndex;
+            
+            // Define fullscreen navigation functions
+            window.changeFullscreenImage = function(direction) {
+                const modal = document.querySelector('.fullscreen-gallery-modal');
+                if (!modal || !modal.allImages) return;
+                
+                modal.currentFullscreenIndex += direction;
+                if (modal.currentFullscreenIndex < 0) modal.currentFullscreenIndex = modal.allImages.length - 1;
+                if (modal.currentFullscreenIndex >= modal.allImages.length) modal.currentFullscreenIndex = 0;
+                
+                updateFullscreenImage();
+            };
+            
+            // Fullscreen rotation functionality
+            window.rotateFullscreenImage = function(degrees) {
+                const modal = document.querySelector('.fullscreen-gallery-modal');
+                if (!modal) return;
+                
+                const fullscreenImg = document.getElementById('fullscreenMainImage');
+                if (!fullscreenImg) return;
+                
+                // Get current rotation or initialize it
+                const currentRotation = parseInt(fullscreenImg.dataset.rotation || '0');
+                const newRotation = currentRotation + degrees;
+                
+                // Apply rotation
+                fullscreenImg.style.transform = `rotate(${newRotation}deg)`;
+                fullscreenImg.dataset.rotation = newRotation.toString();
+                
+                // Add smooth transition
+                fullscreenImg.style.transition = 'transform 0.3s ease';
+                
+                console.log(`Rotated fullscreen image ${degrees} degrees. New rotation: ${newRotation}deg`);
+            };
+            
+            function updateFullscreenImage() {
+                const modal = document.querySelector('.fullscreen-gallery-modal');
+                if (!modal) return;
+                
+                const img = document.getElementById('fullscreenMainImage');
+                const counter = document.getElementById('fullscreenCounter');
+                
+                if (img) {
+                    // Update image source
+                    img.src = `/uploads/${modal.allImages[modal.currentFullscreenIndex]}`;
+                    
+                    // Reset rotation for new image
+                    img.style.transform = 'rotate(0deg)';
+                    img.dataset.rotation = '0';
+                    img.style.transition = 'transform 0.3s ease';
+                }
+                
+                if (counter) {
+                    counter.textContent = `${modal.currentFullscreenIndex + 1} of ${modal.allImages.length}`;
+                }
+            }
+            
+            // Prevent closing when clicking on image or header
+            modal.querySelector('img').onclick = (e) => e.stopPropagation();
+            modal.querySelector('div').onclick = (e) => e.stopPropagation();
+            
+            document.body.appendChild(modal);
+        }
+        
+        function closeFullscreenGallery() {
+            const modal = document.querySelector('.fullscreen-gallery-modal');
+            if (modal) {
+                // Clean up global functions
+                delete window.changeFullscreenImage;
+                delete window.rotateFullscreenImage;
+                document.body.removeChild(modal);
+            }
+        }
+        
+        // View product details
+        async function viewProductDetails(barcode) {
+            try {
+                // Show loading modal first
+                showLoadingModal('Loading product details...');
+                
+                // Fetch product details and transaction history
+                const [productResponse, transactionsResponse] = await Promise.all([
+                    fetch(`/api/products/${encodeURIComponent(barcode)}`),
+                    fetch(`/api/transactions?barcode=${encodeURIComponent(barcode)}`)
+                ]);
+                
+                const productData = await productResponse.json();
+                const transactionsData = await transactionsResponse.json();
+                
+                // Close loading modal
+                closeLoadingModal();
+                
+                if (!productResponse.ok) {
+                    throw new Error(productData.error || 'Failed to load product details');
+                }
+                
+                const product = productData.Result;
+                const transactions = transactionsData.Result || [];
+                
+                showProductDetailsModal(product, transactions);
+                
+            } catch (error) {
+                closeLoadingModal();
+                alert(`Error loading product details: ${error.message}`);
+            }
+        }
+        
+        // Show loading modal
+        function showLoadingModal(message) {
+            const modal = document.createElement('div');
+            modal.id = 'loadingModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+                    <div style="margin-bottom: 20px;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 48px; color: #667eea;"></i>
+                    </div>
+                    <div style="font-size: 18px; color: #333; font-weight: bold;">${message}</div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        // Close loading modal
+        function closeLoadingModal() {
+            const modal = document.getElementById('loadingModal');
+            if (modal) {
+                document.body.removeChild(modal);
+            }
+        }
+        
+        // Show product details modal
+        function showProductDetailsModal(product, transactions) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                overflow-y: auto;
+                padding: 20px;
+                box-sizing: border-box;
+            `;
+            
+            // Calculate total quantity sold
+            const totalSold = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
+            const lastUpdated = transactions.length > 0 ? new Date(Math.max(...transactions.map(t => new Date(t.transaction_date)))).toLocaleString() : 'Never';
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 20px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+                    <!-- Header -->
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 25px; border-radius: 20px 20px 0 0; position: sticky; top: 0; z-index: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center;">
+                                <i class="fas fa-box" style="margin-right: 15px; font-size: 24px;"></i>
+                                <div>
+                                    <div style="font-size: 22px; font-weight: bold; margin-bottom: 5px;">${product.name}</div>
+                                    <div style="font-size: 14px; opacity: 0.9; display: flex; align-items: center;">
+                                        <i class="fas fa-barcode" style="margin-right: 8px;"></i>
+                                        ${product.barcode}
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="document.body.removeChild(this.closest('.product-modal'))" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 8px; border-radius: 50%; transition: background 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='none'">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div style="padding: 25px;">
+                        <!-- Product Image -->
+                        <div style="text-align: center; margin-bottom: 25px;">
+                            ${product.image_path ? 
+                                `<img src="/uploads/${product.image_path}" alt="${product.name}" style="max-width: 300px; max-height: 250px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); object-fit: cover;">` :
+                                `<div style="width: 300px; height: 250px; margin: 0 auto; background: linear-gradient(135deg, #f8f9fa, #e9ecef); border-radius: 15px; display: flex; align-items: center; justify-content: center; color: #666;">
+                                    <i class="fas fa-box" style="font-size: 60px; opacity: 0.5;"></i>
+                                </div>`
+                            }
+                        </div>
+                        
+                        <!-- Product Information Grid -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 4px solid #667eea;">
+                                <div style="font-size: 14px; color: #666; margin-bottom: 5px; font-weight: bold; text-transform: uppercase;">Product Details</div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">Name:</strong> 
+                                    <span style="color: #555;">${product.name}</span>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">Barcode:</strong> 
+                                    <span style="color: #555; font-family: monospace; background: #e9ecef; padding: 2px 6px; border-radius: 4px;">${product.barcode}</span>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">MRP:</strong> 
+                                    <span style="color: ${product.mrp ? '#28a745' : '#dc3545'}; font-weight: bold;">
+                                        ${product.mrp ? '₹' + product.mrp : 'Not set'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <strong style="color: #333;">Category:</strong> 
+                                    <span style="color: #555;">${product.category || 'Not specified'}</span>
+                                </div>
+                            </div>
+                            
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 4px solid #28a745;">
+                                <div style="font-size: 14px; color: #666; margin-bottom: 5px; font-weight: bold; text-transform: uppercase;">Inventory Status</div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">Current Stock:</strong> 
+                                    <span style="color: ${getQuantityColor(product.quantity)}; font-weight: bold; font-size: 18px;">
+                                        ${product.quantity || 0} units
+                                    </span>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">Stock Level:</strong> 
+                                    <span class="quantity-badge ${getQuantityClass(product.quantity)}" style="display: inline-block; padding: 4px 12px; border-radius: 15px; font-size: 12px;">
+                                        ${getStockLevelText(product.quantity)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <strong style="color: #333;">Total Sold:</strong> 
+                                    <span style="color: #dc3545; font-weight: bold;">${totalSold} units</span>
+                                </div>
+                            </div>
+                            
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; border-left: 4px solid #ffc107;">
+                                <div style="font-size: 14px; color: #666; margin-bottom: 5px; font-weight: bold; text-transform: uppercase;">Dates & Activity</div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">Created:</strong> 
+                                    <span style="color: #555;">${new Date(product.created_date).toLocaleDateString()}</span>
+                                </div>
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #333;">Last Updated:</strong> 
+                                    <span style="color: #555;">${new Date(product.updated_date || product.created_date).toLocaleDateString()}</span>
+                                </div>
+                                <div>
+                                    <strong style="color: #333;">Last Sale:</strong> 
+                                    <span style="color: #555;">${lastUpdated}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Transaction History -->
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                                <i class="fas fa-history" style="color: #667eea; margin-right: 10px; font-size: 18px;"></i>
+                                <h3 style="margin: 0; color: #333; font-size: 18px;">Transaction History</h3>
+                                <span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; margin-left: 10px; font-size: 12px; font-weight: bold;">
+                                    ${transactions.length} transactions
+                                </span>
+                            </div>
+                            
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                ${transactions.length > 0 ? 
+                                    transactions.map(transaction => `
+                                        <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid ${transaction.transaction_type === 'in' ? '#28a745' : '#dc3545'}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <div style="display: flex; align-items: center;">
+                                                    <i class="fas fa-${transaction.transaction_type === 'in' ? 'plus' : 'minus'}-circle" style="color: ${transaction.transaction_type === 'in' ? '#28a745' : '#dc3545'}; margin-right: 8px;"></i>
+                                                    <span style="font-weight: bold; color: #333; text-transform: capitalize;">
+                                                        ${transaction.transaction_type === 'in' ? 'Stock Added' : 'Sale'}
+                                                    </span>
+                                                </div>
+                                                <span style="background: ${transaction.transaction_type === 'in' ? '#28a745' : '#dc3545'}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                                                    ${transaction.transaction_type === 'in' ? '+' : '-'}${transaction.quantity}
+                                                </span>
+                                            </div>
+                                            <div style="color: #666; font-size: 14px;">
+                                                <i class="fas fa-clock" style="margin-right: 5px;"></i>
+                                                ${new Date(transaction.transaction_date).toLocaleString()}
+                                            </div>
+                                            ${transaction.notes ? `
+                                                <div style="margin-top: 8px; padding: 8px; background: #f1f3f4; border-radius: 6px; font-size: 13px; color: #555;">
+                                                    <i class="fas fa-sticky-note" style="margin-right: 5px;"></i>
+                                                    ${transaction.notes}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `).join('') : 
+                                    `<div style="text-align: center; padding: 40px; color: #666;">
+                                        <i class="fas fa-history" style="font-size: 48px; margin-bottom: 15px; opacity: 0.3;"></i>
+                                        <div style="font-size: 16px;">No transactions found</div>
+                                        <div style="font-size: 14px; margin-top: 5px;">This product hasn't been sold or restocked yet.</div>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button onclick="document.body.removeChild(this.closest('.product-modal'))" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.3s ease;" onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">
+                                <i class="fas fa-times"></i> Close
+                            </button>
+                            <button onclick="window.open('/api/products/${product.barcode}/export', '_blank')" style="padding: 12px 24px; background: #17a2b8; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.3s ease;" onmouseover="this.style.background='#138496'" onmouseout="this.style.background='#17a2b8'">
+                                <i class="fas fa-download"></i> Export Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.className = 'product-modal';
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
+            
+            document.body.appendChild(modal);
+        }
+        
+        // Helper functions for product details
+        function getQuantityColor(quantity) {
+            if (quantity <= 5) return '#dc3545';
+            if (quantity <= 20) return '#ffc107';
+            return '#28a745';
+        }
+        
+        function getStockLevelText(quantity) {
+            if (quantity <= 5) return 'Low Stock';
+            if (quantity <= 20) return 'Medium Stock';
+            return 'Good Stock';
+        }
+        
+        // Update tab switching to load locations
+        const originalShowTab = showTab;
+        showTab = function(tabName) {
+            originalShowTab(tabName);
+            if (tabName === 'find-products') {
+                loadProductLocations();
+            }
+        };
     </script>
 </body>
 </html> 

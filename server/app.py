@@ -24,15 +24,17 @@ CORS(app)  # Allow cross-origin requests
 UPLOAD_FOLDER = 'uploads'
 PRODUCT_PHOTOS_FOLDER = os.path.join(UPLOAD_FOLDER, 'product_photos')
 CUSTOMER_PHOTOS_FOLDER = os.path.join(UPLOAD_FOLDER, 'customer_photos')
+FIND_PHOTOS_FOLDER = os.path.join(UPLOAD_FOLDER, 'find-photos')
 
 # Create directories if they don't exist
-for folder in [UPLOAD_FOLDER, PRODUCT_PHOTOS_FOLDER, CUSTOMER_PHOTOS_FOLDER]:
+for folder in [UPLOAD_FOLDER, PRODUCT_PHOTOS_FOLDER, CUSTOMER_PHOTOS_FOLDER, FIND_PHOTOS_FOLDER]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['PRODUCT_PHOTOS_FOLDER'] = PRODUCT_PHOTOS_FOLDER
 app.config['CUSTOMER_PHOTOS_FOLDER'] = CUSTOMER_PHOTOS_FOLDER
+app.config['FIND_PHOTOS_FOLDER'] = FIND_PHOTOS_FOLDER
 
 # Database setup
 def init_db():
@@ -79,6 +81,31 @@ def init_db():
         )
     ''')
     
+    # Product Location Photos table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS product_location_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_name TEXT NOT NULL,
+            location_name TEXT NOT NULL,
+            image_path TEXT NOT NULL,
+            notes TEXT,
+            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Product Location Images table (for multiple images per location)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS product_location_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location_id INTEGER NOT NULL,
+            image_path TEXT NOT NULL,
+            image_order INTEGER DEFAULT 1,
+            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (location_id) REFERENCES product_location_photos (id) ON DELETE CASCADE
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -100,6 +127,111 @@ def get_server_status():
         'url': f'http://{local_ip}:8080',
         'message': 'Server is running successfully'
     })
+
+@app.route('/api/products/<barcode>', methods=['GET'])
+def get_product_by_barcode(barcode):
+    """Get a specific product by barcode"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT barcode, name, mrp, category, quantity, created_date, updated_date, image_path
+            FROM products 
+            WHERE barcode = ?
+        ''', (barcode,))
+        
+        product = cursor.fetchone()
+        conn.close()
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        product_dict = {
+            'barcode': product[0],
+            'name': product[1],
+            'mrp': product[2],
+            'category': product[3],
+            'quantity': product[4],
+            'created_date': product[5],
+            'updated_date': product[6],
+            'image_path': product[7]
+        }
+        
+        return jsonify({'Result': product_dict}), 200
+        
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/products/<barcode>/export', methods=['GET'])
+def export_product_data(barcode):
+    """Export product data as JSON"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Get product details
+        cursor.execute('''
+            SELECT barcode, name, mrp, category, quantity, created_date, updated_date, image_path
+            FROM products 
+            WHERE barcode = ?
+        ''', (barcode,))
+        
+        product = cursor.fetchone()
+        if not product:
+            conn.close()
+            return jsonify({'error': 'Product not found'}), 404
+        
+        # Get transaction history
+        cursor.execute('''
+            SELECT transaction_type, quantity, transaction_date, notes
+            FROM transactions 
+            WHERE barcode = ?
+            ORDER BY transaction_date DESC
+        ''', (barcode,))
+        
+        transactions = cursor.fetchall()
+        conn.close()
+        
+        # Build export data
+        product_data = {
+            'product_info': {
+                'barcode': product[0],
+                'name': product[1],
+                'mrp': product[2],
+                'category': product[3],
+                'quantity': product[4],
+                'created_date': product[5],
+                'updated_date': product[6],
+                'image_path': product[7]
+            },
+            'transaction_history': [
+                {
+                    'transaction_type': t[0],
+                    'quantity': t[1],
+                    'transaction_date': t[2],
+                    'notes': t[3]
+                } for t in transactions
+            ],
+            'statistics': {
+                'total_transactions': len(transactions),
+                'total_sold': sum(t[1] for t in transactions if t[0] == 'out'),
+                'total_restocked': sum(t[1] for t in transactions if t[0] == 'in'),
+                'export_date': datetime.now().isoformat()
+            }
+        }
+        
+        # Create response with download headers
+        response = jsonify(product_data)
+        response.headers['Content-Disposition'] = f'attachment; filename=product_{barcode}_export.json'
+        response.headers['Content-Type'] = 'application/json'
+        
+        return response
+        
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/products', methods=['GET'])
 def get_products():
@@ -376,14 +508,29 @@ def add_transaction():
 
 @app.route('/api/transactions', methods=['GET'])
 def get_transactions():
+    barcode_filter = request.args.get('barcode')
+    
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
-    cursor.execute('''
-        SELECT t.*, p.name as product_name 
-        FROM transactions t 
-        LEFT JOIN products p ON t.barcode = p.barcode 
-        ORDER BY transaction_date DESC
-    ''')
+    
+    if barcode_filter:
+        # Filter by specific barcode
+        cursor.execute('''
+            SELECT t.*, p.name as product_name 
+            FROM transactions t 
+            LEFT JOIN products p ON t.barcode = p.barcode 
+            WHERE t.barcode = ?
+            ORDER BY transaction_date DESC
+        ''', (barcode_filter,))
+    else:
+        # Get all transactions
+        cursor.execute('''
+            SELECT t.*, p.name as product_name 
+            FROM transactions t 
+            LEFT JOIN products p ON t.barcode = p.barcode 
+            ORDER BY transaction_date DESC
+        ''')
+    
     transactions = cursor.fetchall()
     conn.close()
     
@@ -1051,6 +1198,417 @@ def delete_customer(customer_id):
         conn.close()
         return jsonify({'error': str(e)}), 400
 
+# Product Location Management APIs
+@app.route('/api/product-locations', methods=['GET'])
+def get_product_locations():
+    """Get all product location photos with pagination"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    # Get pagination parameters
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))
+    offset = (page - 1) * per_page
+    
+    # Get total count
+    cursor.execute('SELECT COUNT(*) FROM product_location_photos')
+    total_count = cursor.fetchone()[0]
+    
+    # Get paginated results
+    cursor.execute('''
+        SELECT * FROM product_location_photos 
+        ORDER BY updated_date DESC 
+        LIMIT ? OFFSET ?
+    ''', (per_page, offset))
+    locations = cursor.fetchall()
+    
+    location_list = []
+    for location in locations:
+        location_id = location[0]
+        
+        # Get all images for this location
+        cursor.execute('''
+            SELECT image_path FROM product_location_images 
+            WHERE location_id = ? 
+            ORDER BY image_order
+        ''', (location_id,))
+        images = cursor.fetchall()
+        image_paths = [img[0] for img in images] if images else []
+        
+        location_list.append({
+            'id': location[0],
+            'product_name': location[1],
+            'location_name': location[2],
+            'image_path': location[3],  # Main image (backward compatibility)
+            'image_paths': image_paths,  # All images
+            'notes': location[4],
+            'created_date': location[5],
+            'updated_date': location[6]
+        })
+    
+    conn.close()
+    
+    return jsonify({
+        'Result': location_list,
+        'total_count': total_count,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total_count + per_page - 1) // per_page
+    })
+
+@app.route('/api/product-locations/search/<query>', methods=['GET'])
+def search_product_locations(query):
+    """Search product locations by product name or location name"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT * FROM product_location_photos 
+        WHERE product_name LIKE ? OR location_name LIKE ?
+        ORDER BY updated_date DESC
+    ''', (f'%{query}%', f'%{query}%'))
+    locations = cursor.fetchall()
+    
+    location_list = []
+    for location in locations:
+        location_id = location[0]
+        
+        # Get all images for this location
+        cursor.execute('''
+            SELECT image_path FROM product_location_images 
+            WHERE location_id = ? 
+            ORDER BY image_order
+        ''', (location_id,))
+        images = cursor.fetchall()
+        image_paths = [img[0] for img in images] if images else []
+        
+        location_list.append({
+            'id': location[0],
+            'product_name': location[1],
+            'location_name': location[2],
+            'image_path': location[3],  # Main image (backward compatibility)
+            'image_paths': image_paths,  # All images
+            'notes': location[4],
+            'created_date': location[5],
+            'updated_date': location[6]
+        })
+    
+    conn.close()
+    return jsonify({'Result': location_list})
+
+@app.route('/api/product-locations', methods=['POST'])
+def add_product_location():
+    """Add a new product location with multiple photos"""
+    data = request.json
+    
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    try:
+        # First, insert the location record
+        cursor.execute('''
+            INSERT INTO product_location_photos (product_name, location_name, image_path, notes)
+            VALUES (?, ?, ?, ?)
+        ''', (
+            data['product_name'],
+            data['location_name'],
+            '',  # Will be updated with first image path
+            data.get('notes', '')
+        ))
+        
+        location_id = cursor.lastrowid
+        
+        # Handle multiple images
+        image_paths = []
+        first_image_path = None
+        
+        # Check for multiple images
+        if 'image_data_list' in data and data['image_data_list']:
+            for i, image_data in enumerate(data['image_data_list']):
+                if image_data:
+                    # Process and save compressed image to find-photos folder
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    product_safe = data['product_name'].replace(' ', '_').replace('/', '_')
+                    filename = f"location_{product_safe}_{location_id}_{i+1}_{timestamp}.jpg"
+                    success, full_path, error_msg = process_and_save_image(
+                        image_data, 
+                        filename, 
+                        app.config['FIND_PHOTOS_FOLDER'],
+                        compress=True
+                    )
+                    
+                    if not success:
+                        # Cleanup and return error
+                        cursor.execute('DELETE FROM product_location_photos WHERE id = ?', (location_id,))
+                        conn.commit()
+                        conn.close()
+                        return jsonify({'error': f'Failed to process image {i+1}: {error_msg}'}), 400
+                    
+                    # Save relative path in database (find-photos/filename)
+                    relative_path = f"find-photos/{filename}"
+                    image_paths.append(relative_path)
+                    
+                    if i == 0:  # First image becomes the main image
+                        first_image_path = relative_path
+                    
+                    # Insert into product_location_images table
+                    cursor.execute('''
+                        INSERT INTO product_location_images (location_id, image_path, image_order)
+                        VALUES (?, ?, ?)
+                    ''', (location_id, relative_path, i + 1))
+        
+        # Handle single image (backward compatibility)
+        elif 'image_data' in data and data['image_data']:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            product_safe = data['product_name'].replace(' ', '_').replace('/', '_')
+            filename = f"location_{product_safe}_{location_id}_1_{timestamp}.jpg"
+            success, full_path, error_msg = process_and_save_image(
+                data['image_data'], 
+                filename, 
+                app.config['FIND_PHOTOS_FOLDER'],
+                compress=True
+            )
+            
+            if not success:
+                cursor.execute('DELETE FROM product_location_photos WHERE id = ?', (location_id,))
+                conn.commit()
+                conn.close()
+                return jsonify({'error': f'Failed to process image: {error_msg}'}), 400
+            
+            relative_path = f"find-photos/{filename}"
+            first_image_path = relative_path
+            
+            # Insert into product_location_images table
+            cursor.execute('''
+                INSERT INTO product_location_images (location_id, image_path, image_order)
+                VALUES (?, ?, ?)
+            ''', (location_id, relative_path, 1))
+        
+        # Update the main location record with the first image path
+        if first_image_path:
+            cursor.execute('''
+                UPDATE product_location_photos 
+                SET image_path = ? 
+                WHERE id = ?
+            ''', (first_image_path, location_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'Result': 'Product location added successfully',
+            'location_id': location_id,
+            'images_saved': len(image_paths) if image_paths else (1 if first_image_path else 0)
+        })
+        
+    except Exception as e:
+        # Cleanup on error
+        try:
+            cursor.execute('DELETE FROM product_location_photos WHERE id = ?', (location_id,))
+            conn.commit()
+        except:
+            pass
+        conn.close()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/product-locations/<int:location_id>', methods=['GET'])
+def get_product_location(location_id):
+    """Get a specific product location by ID"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT id, product_name, location_name, image_path, notes, created_date, updated_date
+            FROM product_location_photos 
+            WHERE id = ?
+        ''', (location_id,))
+        
+        location = cursor.fetchone()
+        
+        if not location:
+            conn.close()
+            return jsonify({'error': 'Location not found'}), 404
+        
+        # Get all images for this location (like in the list endpoint)
+        cursor.execute('''
+            SELECT image_path FROM product_location_images 
+            WHERE location_id = ? 
+            ORDER BY image_order
+        ''', (location_id,))
+        images = cursor.fetchall()
+        image_paths = [img[0] for img in images] if images else []
+        
+        conn.close()
+        
+        location_dict = {
+            'id': location[0],
+            'product_name': location[1],
+            'location_name': location[2],
+            'image_path': location[3],  # Main image (backward compatibility)
+            'image_paths': image_paths,  # All images
+            'notes': location[4],
+            'created_date': location[5],
+            'updated_date': location[6]
+        }
+        
+        return jsonify({'Result': location_dict}), 200
+        
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/product-locations/<int:location_id>', methods=['PUT'])
+def update_product_location(location_id):
+    """Update a product location with support for photo deletion"""
+    data = request.json
+    
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Check if location exists
+        cursor.execute('SELECT image_path FROM product_location_photos WHERE id = ?', (location_id,))
+        current_location = cursor.fetchone()
+        if not current_location:
+            conn.close()
+            return jsonify({'error': 'Product location not found'}), 404
+        
+        # Handle images to delete
+        images_to_delete = data.get('images_to_delete', [])
+        if images_to_delete:
+            for image_path in images_to_delete:
+                # Delete from file system
+                try:
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_path)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted image file: {image_path}")
+                except Exception as e:
+                    print(f"Error deleting image file {image_path}: {e}")
+                
+                # Delete from database
+                cursor.execute('DELETE FROM product_location_images WHERE location_id = ? AND image_path = ?', 
+                             (location_id, image_path))
+        
+        # Handle new images if provided
+        image_paths = []
+        first_image_path = None
+        
+        if 'image_data_list' in data and data['image_data_list']:
+            for i, image_data in enumerate(data['image_data_list']):
+                if image_data and image_data.startswith('data:image'):
+                    try:
+                        # Process and save compressed image to find-photos folder
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        product_safe = data['product_name'].replace(' ', '_').replace('/', '_')
+                        filename = f"location_{product_safe}_{timestamp}_{i}.jpg"
+                        success, full_path, error_msg = process_and_save_image(
+                            image_data, 
+                            filename, 
+                            app.config['FIND_PHOTOS_FOLDER'],
+                            compress=True
+                        )
+                        
+                        if not success:
+                            conn.close()
+                            return jsonify({'error': f'Failed to process image: {error_msg}'}), 400
+                        
+                        # Save relative path
+                        relative_path = f"find-photos/{filename}"
+                        image_paths.append(relative_path)
+                        
+                        if first_image_path is None:
+                            first_image_path = relative_path
+                        
+                        # Insert into images table
+                        cursor.execute('''
+                            INSERT INTO product_location_images (location_id, image_path, image_order)
+                            VALUES (?, ?, ?)
+                        ''', (location_id, relative_path, i))
+                        
+                        print(f"New compressed location image saved: {filename}")
+                    except Exception as img_error:
+                        conn.close()
+                        print(f"Error processing location image: {img_error}")
+                        return jsonify({'error': f'Error processing image: {str(img_error)}'}), 400
+        
+        # Update main location record
+        # Use first new image if available, otherwise keep existing
+        main_image_path = first_image_path or current_location[0]
+        
+        cursor.execute('''
+            UPDATE product_location_photos 
+            SET product_name = ?, location_name = ?, image_path = ?, notes = ?, updated_date = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (
+            data['product_name'],
+            data['location_name'],
+            main_image_path,
+            data.get('notes', ''),
+            location_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'Result': 'Product location updated successfully'})
+        
+    except Exception as e:
+        print(f"Error updating product location: {e}")
+        if 'conn' in locals():
+            conn.close()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/product-locations/<int:location_id>', methods=['DELETE'])
+def delete_product_location(location_id):
+    """Delete a product location"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Get the image path to delete the file
+        cursor.execute('SELECT image_path FROM product_location_photos WHERE id = ?', (location_id,))
+        result = cursor.fetchone()
+        
+        if result and result[0]:
+            # Delete the image file
+            image_path = os.path.join(app.config['UPLOAD_FOLDER'], result[0])
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                print(f"Deleted location image: {image_path}")
+        
+        # Delete the location
+        cursor.execute('DELETE FROM product_location_photos WHERE id = ?', (location_id,))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Product location not found'}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'Result': 'Product location deleted successfully'})
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/product-locations/suggestions/<query>', methods=['GET'])
+def get_product_suggestions(query):
+    """Get product name suggestions for search"""
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT DISTINCT product_name FROM product_location_photos 
+        WHERE product_name LIKE ?
+        ORDER BY product_name
+        LIMIT 10
+    ''', (f'%{query}%',))
+    suggestions = cursor.fetchall()
+    conn.close()
+    
+    suggestion_list = [suggestion[0] for suggestion in suggestions]
+    return jsonify({'Result': suggestion_list})
+
 # Sales Analytics APIs
 @app.route('/api/sales/summary', methods=['GET'])
 def get_sales_summary():
@@ -1150,6 +1708,11 @@ def customer_photo(filename):
     """Serve customer photos"""
     return send_from_directory(app.config['CUSTOMER_PHOTOS_FOLDER'], filename)
 
+@app.route('/uploads/find-photos/<filename>')
+def find_photo(filename):
+    """Serve product location photos"""
+    return send_from_directory(app.config['FIND_PHOTOS_FOLDER'], filename)
+
 def compress_image(image_bytes, max_size_kb=500, quality=85, max_width=1200, max_height=1200):
     """
     Compress image to reduce file size while maintaining quality
@@ -1172,6 +1735,45 @@ def compress_image(image_bytes, max_size_kb=500, quality=85, max_width=1200, max
     try:
         # Open image from bytes
         img = Image.open(io.BytesIO(image_bytes))
+        
+        # Handle EXIF orientation to fix rotation issues from mobile cameras
+        try:
+            # Use Pillow's built-in EXIF transpose function (most reliable method)
+            from PIL import ImageOps
+            original_size = img.size
+            img = ImageOps.exif_transpose(img)
+            new_size = img.size
+            
+            if original_size != new_size:
+                print(f"EXIF orientation corrected: {original_size} → {new_size}")
+            else:
+                print("No EXIF orientation correction needed")
+                
+        except ImportError:
+            print("ImageOps not available, trying manual EXIF handling")
+            # Fallback to manual method if ImageOps is not available
+            try:
+                exif_dict = img.getexif() if hasattr(img, 'getexif') else None
+                if exif_dict:
+                    orientation = exif_dict.get(274)  # 274 is the EXIF orientation tag
+                    if orientation:
+                        print(f"EXIF orientation found: {orientation}")
+                        if orientation == 3:
+                            img = img.rotate(180, expand=True)
+                            print("Applied 180° rotation")
+                        elif orientation == 6:
+                            img = img.rotate(270, expand=True)
+                            print("Applied 270° rotation (correcting 90° CW)")
+                        elif orientation == 8:
+                            img = img.rotate(90, expand=True)
+                            print("Applied 90° rotation (correcting 90° CCW)")
+                else:
+                    print("No EXIF data available")
+            except Exception as fallback_e:
+                print(f"Fallback EXIF processing failed: {fallback_e}")
+        except Exception as e:
+            print(f"Error processing EXIF orientation: {e} - continuing without EXIF correction")
+            # Continue without EXIF processing if it fails
         
         # Convert to RGB if necessary (handles PNG with transparency, etc.)
         if img.mode in ('RGBA', 'LA', 'P'):

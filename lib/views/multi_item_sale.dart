@@ -777,12 +777,15 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
                                         child: Image.network(
                       '${_inventoryController.baseUrl}/uploads/${item.product.imagePath}',
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => 
-                          Icon(
+                                          errorBuilder: (context, error, stackTrace) {
+                                            print('Error loading product image: ${_inventoryController.baseUrl}/uploads/${item.product.imagePath}');
+                                            print('Error details: $error');
+                                            return Icon(
                             Icons.inventory_2_outlined, 
                             color: Colors.grey.shade400, 
                             size: _isTablet ? 28 : 20,
-                          ),
+                          );
+                                          },
                     ),
                   )
                 : Icon(

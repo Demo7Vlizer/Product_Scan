@@ -86,6 +86,8 @@ class StockManagementApp extends StatelessWidget {
         primary: primaryColor,
         secondary: secondaryColor,
         ),
+
+
       
       // App bar theme
       appBarTheme: const AppBarTheme(

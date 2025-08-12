@@ -469,6 +469,8 @@ class _EditProductPageState extends State<EditProductPage> {
                                 imageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
+                                  print('Error loading product image: $imageUrl');
+                                  print('Error details: $error');
                                   return Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [

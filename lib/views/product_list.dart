@@ -318,6 +318,8 @@ class _ProductListPageState extends State<ProductListPage> {
                                             height: 40,
                                             fit: BoxFit.cover,
                                             errorBuilder: (context, error, stackTrace) {
+                                              print('Error loading product image: ${RequestClient.baseUrl}/uploads/${product.imagePath}');
+                                              print('Error details: $error');
                                               return Icon(
                                                 Icons.inventory_2_outlined,
                                                 color: Colors.grey.shade500,
