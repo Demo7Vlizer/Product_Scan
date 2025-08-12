@@ -131,37 +131,41 @@ def get_server_status():
 @app.route('/api/products/<barcode>', methods=['GET'])
 def get_product_by_barcode(barcode):
     """Get a specific product by barcode"""
+    print(f'🔍 [Server] GET request for product with barcode: {barcode}')
+    
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
     
     try:
         cursor.execute('''
-            SELECT barcode, name, mrp, category, quantity, created_date, updated_date, image_path
+            SELECT barcode, name, mrp, quantity, created_date, image_path
             FROM products 
             WHERE barcode = ?
         ''', (barcode,))
         
         product = cursor.fetchone()
+        print(f'📊 [Server] Query result: {product}')
         conn.close()
         
         if not product:
+            print(f'❌ [Server] Product not found for barcode: {barcode}')
             return jsonify({'error': 'Product not found'}), 404
         
         product_dict = {
             'barcode': product[0],
             'name': product[1],
             'mrp': product[2],
-            'category': product[3],
-            'quantity': product[4],
-            'created_date': product[5],
-            'updated_date': product[6],
-            'image_path': product[7]
+            'quantity': product[3],
+            'created_date': product[4],
+            'image_path': product[5]
         }
         
+        print(f'✅ [Server] Product found: {product_dict["name"]} (barcode: {barcode})')
         return jsonify({'Result': product_dict}), 200
         
     except Exception as e:
         conn.close()
+        print(f'💥 [Server] Database error: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/products/<barcode>/export', methods=['GET'])
@@ -173,7 +177,7 @@ def export_product_data(barcode):
     try:
         # Get product details
         cursor.execute('''
-            SELECT barcode, name, mrp, category, quantity, created_date, updated_date, image_path
+            SELECT barcode, name, mrp, quantity, created_date, image_path
             FROM products 
             WHERE barcode = ?
         ''', (barcode,))
@@ -200,11 +204,9 @@ def export_product_data(barcode):
                 'barcode': product[0],
                 'name': product[1],
                 'mrp': product[2],
-                'category': product[3],
-                'quantity': product[4],
-                'created_date': product[5],
-                'updated_date': product[6],
-                'image_path': product[7]
+                'quantity': product[3],
+                'created_date': product[4],
+                'image_path': product[5]
             },
             'transaction_history': [
                 {
@@ -255,32 +257,13 @@ def get_products():
     
     return jsonify({'Result': product_list})
 
-@app.route('/api/products/<barcode>', methods=['GET'])
-def get_product(barcode):
-    conn = sqlite3.connect('inventory.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM products WHERE barcode = ?', (barcode,))
-    product = cursor.fetchone()
-    conn.close()
-    
-    if product:
-        return jsonify({
-            'Result': {
-                'id': product[0],
-                'barcode': product[1],
-                'name': product[2],
-                'image_path': product[3],
-                'mrp': product[4],
-                'quantity': product[5],
-                'created_date': product[6]
-            }
-        })
-    else:
-        return jsonify({'Result': None}), 404
+# Removed duplicate endpoint - using get_product_by_barcode instead
 
 @app.route('/api/products', methods=['POST'])
 def add_product():
     data = request.json
+    print(f'➕ [Server] POST request to add product with barcode: {data.get("barcode", "UNKNOWN")}')
+    print(f'📋 [Server] Product data: {data}')
     
     # Handle image upload if provided
     image_path = None
@@ -295,6 +278,7 @@ def add_product():
         )
         
         if not success:
+            print(f'🖼️ [Server] Image processing failed: {error_msg}')
             return jsonify({'error': f'Failed to process product image: {error_msg}'}), 400
         
         # Save relative path in database (product_photos/filename)
@@ -304,6 +288,15 @@ def add_product():
     cursor = conn.cursor()
     
     try:
+        # First check if product already exists
+        cursor.execute('SELECT barcode FROM products WHERE barcode = ?', (data['barcode'],))
+        existing = cursor.fetchone()
+        
+        if existing:
+            print(f'⚠️ [Server] Product already exists with barcode: {data["barcode"]}')
+            conn.close()
+            return jsonify({'error': 'Product with this barcode already exists'}), 400
+        
         cursor.execute('''
             INSERT INTO products (barcode, name, image_path, mrp, quantity)
             VALUES (?, ?, ?, ?, ?)
@@ -312,10 +305,16 @@ def add_product():
         conn.commit()
         conn.close()
         
+        print(f'✅ [Server] Product added successfully: {data["name"]} (barcode: {data["barcode"]})')
         return jsonify({'Result': 'Product added successfully'})
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError as e:
         conn.close()
+        print(f'🚫 [Server] Integrity error - product already exists: {data["barcode"]} - {str(e)}')
         return jsonify({'error': 'Product with this barcode already exists'}), 400
+    except Exception as e:
+        conn.close()
+        print(f'💥 [Server] Database error during add: {str(e)}')
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/products/<barcode>', methods=['PUT'])
 def update_product(barcode):

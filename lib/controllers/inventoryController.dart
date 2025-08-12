@@ -42,21 +42,39 @@ class InventoryController {
   // Get product by barcode
   Future<Product?> getProduct(String barcode) async {
     try {
+      print('🔍 [InventoryController] Fetching product with barcode: $barcode');
+      print('🌐 [InventoryController] Request URL: $_baseUrl/api/products/$barcode');
+      
       var response = await http.get(
         Uri.parse('$_baseUrl/api/products/$barcode'),
-      );
+      ).timeout(Duration(seconds: 10));
+      
+      print('📡 [InventoryController] Response status: ${response.statusCode}');
+      print('📄 [InventoryController] Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
         if (data['Result'] != null) {
+          print('✅ [InventoryController] Product found: ${data['Result']['name']}');
           return Product.fromJson(data['Result']);
         }
+        print('❌ [InventoryController] Product not found (Result is null)');
         return null;
       } else if (response.statusCode == 404) {
+        print('❌ [InventoryController] Product not found (404 status)');
         return null; // Product not found
       } else {
+        print('🚨 [InventoryController] Server error: ${response.statusCode}');
         throw Exception('Failed to load product: ${response.statusCode}');
       }
+    } on TimeoutException {
+      print('⏱️ [InventoryController] Connection timeout');
+      throw Exception('Connection timeout');
+    } on SocketException {
+      print('🔌 [InventoryController] Cannot connect to server');
+      throw Exception('Cannot connect to server');
     } catch (e) {
+      print('💥 [InventoryController] Network error: $e');
       throw Exception('Network error: $e');
     }
   }

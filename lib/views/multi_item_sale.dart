@@ -1834,6 +1834,7 @@ class _ProductScannerPageState extends State<_ProductScannerPage>
   }
 
   void _handleScannedCode(String code) async {
+      print('📱 [Scanner] Barcode scanned: $code');
       setState(() {
         _isLoading = true;
       _hasScanned = true;
@@ -1846,18 +1847,22 @@ class _ProductScannerPageState extends State<_ProductScannerPage>
     }
 
     try {
+      print('🔄 [Scanner] Calling InventoryController.getProduct($code)');
       final product = await _inventoryController.getProduct(code);
       
       if (mounted) {
         if (product != null) {
+          print('✅ [Scanner] Product found: ${product.name}, navigating back with product');
           await Future.delayed(const Duration(milliseconds: 500));
           widget.onProductScanned(product);
           Navigator.pop(context);
         } else {
+          print('❌ [Scanner] Product not found, showing dialog');
           _showProductNotFoundDialog(code);
         }
       }
     } catch (e) {
+      print('💥 [Scanner] Error during product lookup: $e');
       if (mounted) {
         setState(() => _hasScanned = false);
         
