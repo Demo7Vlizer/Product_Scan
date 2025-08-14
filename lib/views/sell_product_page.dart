@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/product.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 
 class SellProductPage extends StatefulWidget {
   final Product product;
@@ -29,13 +32,87 @@ class _SellProductPageState extends State<SellProductPage> {
     super.dispose();
   }
 
+  /// Advanced image compression for smaller file sizes
+  Future<File?> _compressImage(File imageFile) async {
+    try {
+      // Get temporary directory for compressed images
+      final Directory tempDir = await getTemporaryDirectory();
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+      final String targetPath = '${tempDir.path}/$fileName';
+      
+      // Compress image with aggressive settings
+      final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        minWidth: 600,        // Reduced from 1200
+        minHeight: 600,       // Reduced from 1200
+        quality: 60,          // Reduced from 85 for smaller size
+        rotate: 0,
+        format: CompressFormat.jpeg,
+      );
+      
+      if (compressedFile != null) {
+        final File compressedImageFile = File(compressedFile.path);
+        
+        // Log compression results
+        final originalSize = await imageFile.length();
+        final compressedSize = await compressedImageFile.length();
+        final compressionRatio = (originalSize / compressedSize).toStringAsFixed(1);
+        
+        print('Image compression: ${(originalSize / 1024).toStringAsFixed(1)}KB → ${(compressedSize / 1024).toStringAsFixed(1)}KB (${compressionRatio}x smaller)');
+        
+        return compressedImageFile;
+      }
+    } catch (e) {
+      print('Error compressing image: $e');
+      // Return original file if compression fails
+      return imageFile;
+    }
+    
+    return null;
+  }
+
   Future<void> _pickImage() async {
-    final ImagePicker _picker = ImagePicker();
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() {
-        _pickedImage = image;
-      });
+    try {
+      final ImagePicker _picker = ImagePicker();
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 70,
+      );
+      
+      if (image != null) {
+        final File originalFile = File(image.path);
+        
+        // Apply additional compression
+        final File? compressedFile = await _compressImage(originalFile);
+        
+        if (compressedFile != null) {
+          setState(() {
+            _pickedImage = XFile(compressedFile.path);
+          });
+          
+          // Clean up original file if different from compressed
+          if (originalFile.path != compressedFile.path) {
+            try {
+              await originalFile.delete();
+            } catch (e) {
+              print('Could not delete original file: $e');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

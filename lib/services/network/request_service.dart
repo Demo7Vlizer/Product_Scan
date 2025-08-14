@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:meta/meta.dart';
 
 class RequestClient {
-  static String _baseUrl = "http://192.168.1.100:8080";
+  static String _baseUrl = "http://localhost:8080";
   static String get baseUrl => _baseUrl;
   
   static Future<void> loadServerUrl() async {
@@ -18,7 +18,7 @@ class RequestClient {
       _baseUrl = savedUrl;
     } else {
       // Set a default URL - auto-detection will be manual only
-      _baseUrl = 'http://192.168.1.100:8080';
+      _baseUrl = 'http://localhost:8080';
       print('💡 No server URL configured. Use Settings > Auto-Detect Server or enter manually.');
     }
   }

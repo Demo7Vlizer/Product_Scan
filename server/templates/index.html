@@ -1305,9 +1305,24 @@
             return 'quantity-high';
         }
 
-        // View customer photo
+        // View customer photo(s) - supports both single photo and multiple photos
         function viewCustomerPhoto(photoPath, customerName) {
             if (!photoPath) return;
+            
+            // Parse photos - could be single photo or JSON array
+            let photos = [];
+            try {
+                // Try to parse as JSON array first
+                photos = JSON.parse(photoPath);
+                if (!Array.isArray(photos)) {
+                    photos = [photoPath]; // Single photo
+                }
+            } catch (e) {
+                // Not JSON, treat as single photo
+                photos = [photoPath];
+            }
+            
+            let currentPhotoIndex = 0;
             
             // Create modal
             const modal = document.createElement('div');
@@ -1355,8 +1370,8 @@
                 <div style="display: flex; align-items: center;">
                     <i class="fas fa-camera" style="margin-right: 12px; font-size: 20px;"></i>
                     <div>
-                        <div style="font-size: 18px; font-weight: bold;">Customer Photo</div>
-                        <div style="font-size: 14px; opacity: 0.9;">${customerName}</div>
+                        <div style="font-size: 18px; font-weight: bold;">Customer Photo${photos.length > 1 ? 's' : ''}</div>
+                        <div style="font-size: 14px; opacity: 0.9;">${customerName}${photos.length > 1 ? ` (${photos.length} photos)` : ''}</div>
                     </div>
                 </div>
             `;
@@ -1368,6 +1383,55 @@
                 gap: 10px;
                 align-items: center;
             `;
+            
+            // Create navigation buttons (only if multiple photos)
+            let prevBtn, nextBtn, photoCounter;
+            if (photos.length > 1) {
+                prevBtn = document.createElement('button');
+                prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+                prevBtn.style.cssText = `
+                    background: none;
+                    border: none;
+                    color: white;
+                    font-size: 18px;
+                    cursor: pointer;
+                    padding: 8px;
+                    border-radius: 50%;
+                    transition: background 0.3s;
+                `;
+                prevBtn.title = 'Previous photo';
+                prevBtn.onmouseover = () => prevBtn.style.background = 'rgba(255,255,255,0.2)';
+                prevBtn.onmouseout = () => prevBtn.style.background = 'none';
+                
+                nextBtn = document.createElement('button');
+                nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+                nextBtn.style.cssText = `
+                    background: none;
+                    border: none;
+                    color: white;
+                    font-size: 18px;
+                    cursor: pointer;
+                    padding: 8px;
+                    border-radius: 50%;
+                    transition: background 0.3s;
+                `;
+                nextBtn.title = 'Next photo';
+                nextBtn.onmouseover = () => nextBtn.style.background = 'rgba(255,255,255,0.2)';
+                nextBtn.onmouseout = () => nextBtn.style.background = 'none';
+                
+                photoCounter = document.createElement('span');
+                photoCounter.style.cssText = `
+                    background: rgba(255,255,255,0.2);
+                    padding: 4px 12px;
+                    border-radius: 15px;
+                    font-size: 14px;
+                    font-weight: 500;
+                `;
+                
+                buttonContainer.appendChild(prevBtn);
+                buttonContainer.appendChild(photoCounter);
+                buttonContainer.appendChild(nextBtn);
+            }
             
             // Create fullscreen button
             const fullscreenBtn = document.createElement('button');
@@ -1425,16 +1489,74 @@
                 max-height: 100%;
                 border-radius: 10px;
                 box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                transition: opacity 0.3s ease;
             `;
             
-            // Handle different image sources
-            if (photoPath.startsWith('data:image')) {
-                img.src = photoPath;
-            } else {
-                // Add cache-busting parameter to prevent caching issues
-                const cacheBuster = new Date().getTime();
-                img.src = `/uploads/${photoPath}?t=${cacheBuster}`;
+            // Function to update the displayed image
+            function updateDisplayedImage() {
+                const currentPhoto = photos[currentPhotoIndex];
+                
+                // Handle different image sources
+                if (currentPhoto.startsWith('data:image')) {
+                    img.src = currentPhoto;
+                } else {
+                    // Add cache-busting parameter to prevent caching issues
+                    const cacheBuster = new Date().getTime();
+                    img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
+                }
+                
+                // Update photo counter if multiple photos
+                if (photos.length > 1 && photoCounter) {
+                    photoCounter.textContent = `${currentPhotoIndex + 1} / ${photos.length}`;
+                    
+                    // Update button states
+                    prevBtn.style.opacity = currentPhotoIndex === 0 ? '0.5' : '1';
+                    nextBtn.style.opacity = currentPhotoIndex === photos.length - 1 ? '0.5' : '1';
+                    prevBtn.style.cursor = currentPhotoIndex === 0 ? 'not-allowed' : 'pointer';
+                    nextBtn.style.cursor = currentPhotoIndex === photos.length - 1 ? 'not-allowed' : 'pointer';
+                }
             }
+            
+            // Set up navigation event handlers
+            if (photos.length > 1) {
+                prevBtn.onclick = () => {
+                    if (currentPhotoIndex > 0) {
+                        currentPhotoIndex--;
+                        updateDisplayedImage();
+                    }
+                };
+                
+                nextBtn.onclick = () => {
+                    if (currentPhotoIndex < photos.length - 1) {
+                        currentPhotoIndex++;
+                        updateDisplayedImage();
+                    }
+                };
+                
+                // Keyboard navigation
+                document.addEventListener('keydown', function handleKeydown(e) {
+                    if (e.key === 'ArrowLeft' && currentPhotoIndex > 0) {
+                        currentPhotoIndex--;
+                        updateDisplayedImage();
+                    } else if (e.key === 'ArrowRight' && currentPhotoIndex < photos.length - 1) {
+                        currentPhotoIndex++;
+                        updateDisplayedImage();
+                    } else if (e.key === 'Escape') {
+                        document.body.removeChild(modal);
+                        document.removeEventListener('keydown', handleKeydown);
+                    }
+                });
+                
+                // Clean up event listener when modal is closed
+                const originalClose = closeBtn.onclick;
+                closeBtn.onclick = () => {
+                    document.removeEventListener('keydown', handleKeydown);
+                    originalClose();
+                };
+            }
+            
+            // Initialize the first image
+            updateDisplayedImage();
             
             img.onerror = () => {
                 imageContainer.innerHTML = `

@@ -55,6 +55,7 @@ dependencies:
 
   # Image handling
   image_picker: ^1.0.4
+  flutter_image_compress: ^2.0.4
 
   # File handling
   path_provider: ^2.1.1

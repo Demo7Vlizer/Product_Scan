@@ -131,8 +131,6 @@ def get_server_status():
 @app.route('/api/products/<barcode>', methods=['GET'])
 def get_product_by_barcode(barcode):
     """Get a specific product by barcode"""
-    print(f'🔍 [Server] GET request for product with barcode: {barcode}')
-    
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
     
@@ -144,11 +142,9 @@ def get_product_by_barcode(barcode):
         ''', (barcode,))
         
         product = cursor.fetchone()
-        print(f'📊 [Server] Query result: {product}')
         conn.close()
         
         if not product:
-            print(f'❌ [Server] Product not found for barcode: {barcode}')
             return jsonify({'error': 'Product not found'}), 404
         
         product_dict = {
@@ -160,12 +156,10 @@ def get_product_by_barcode(barcode):
             'image_path': product[5]
         }
         
-        print(f'✅ [Server] Product found: {product_dict["name"]} (barcode: {barcode})')
         return jsonify({'Result': product_dict}), 200
         
     except Exception as e:
         conn.close()
-        print(f'💥 [Server] Database error: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/products/<barcode>/export', methods=['GET'])
@@ -257,13 +251,32 @@ def get_products():
     
     return jsonify({'Result': product_list})
 
-# Removed duplicate endpoint - using get_product_by_barcode instead
+@app.route('/api/products/<barcode>', methods=['GET'])
+def get_product(barcode):
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM products WHERE barcode = ?', (barcode,))
+    product = cursor.fetchone()
+    conn.close()
+    
+    if product:
+        return jsonify({
+            'Result': {
+                'id': product[0],
+                'barcode': product[1],
+                'name': product[2],
+                'image_path': product[3],
+                'mrp': product[4],
+                'quantity': product[5],
+                'created_date': product[6]
+            }
+        })
+    else:
+        return jsonify({'Result': None}), 404
 
 @app.route('/api/products', methods=['POST'])
 def add_product():
     data = request.json
-    print(f'➕ [Server] POST request to add product with barcode: {data.get("barcode", "UNKNOWN")}')
-    print(f'📋 [Server] Product data: {data}')
     
     # Handle image upload if provided
     image_path = None
@@ -278,7 +291,6 @@ def add_product():
         )
         
         if not success:
-            print(f'🖼️ [Server] Image processing failed: {error_msg}')
             return jsonify({'error': f'Failed to process product image: {error_msg}'}), 400
         
         # Save relative path in database (product_photos/filename)
@@ -288,15 +300,6 @@ def add_product():
     cursor = conn.cursor()
     
     try:
-        # First check if product already exists
-        cursor.execute('SELECT barcode FROM products WHERE barcode = ?', (data['barcode'],))
-        existing = cursor.fetchone()
-        
-        if existing:
-            print(f'⚠️ [Server] Product already exists with barcode: {data["barcode"]}')
-            conn.close()
-            return jsonify({'error': 'Product with this barcode already exists'}), 400
-        
         cursor.execute('''
             INSERT INTO products (barcode, name, image_path, mrp, quantity)
             VALUES (?, ?, ?, ?, ?)
@@ -305,16 +308,10 @@ def add_product():
         conn.commit()
         conn.close()
         
-        print(f'✅ [Server] Product added successfully: {data["name"]} (barcode: {data["barcode"]})')
         return jsonify({'Result': 'Product added successfully'})
-    except sqlite3.IntegrityError as e:
+    except sqlite3.IntegrityError:
         conn.close()
-        print(f'🚫 [Server] Integrity error - product already exists: {data["barcode"]} - {str(e)}')
         return jsonify({'error': 'Product with this barcode already exists'}), 400
-    except Exception as e:
-        conn.close()
-        print(f'💥 [Server] Database error during add: {str(e)}')
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/products/<barcode>', methods=['PUT'])
 def update_product(barcode):
@@ -473,7 +470,81 @@ def add_transaction():
     cursor = conn.cursor()
     
     try:
-        # Add transaction record
+        # Process photo if provided
+        processed_photo = None
+        recipient_photo = data.get('recipient_photo')
+        
+        if recipient_photo:
+            # Handle JSON array of photos (from multi-item sales)
+            try:
+                import json
+                photo_array = json.loads(recipient_photo)
+                if isinstance(photo_array, list) and len(photo_array) > 0:
+                    # Process and save ALL photos from the array
+                    processed_photos = []
+                    recipient_name = data.get('recipient_name', 'Unknown')
+                    recipient_phone = data.get('recipient_phone', '')
+                    customer_key = f"{recipient_name}_{recipient_phone}".replace(' ', '_').replace('+', '').replace('(', '').replace(')', '')
+                    
+                    for i, photo in enumerate(photo_array):
+                        if photo and photo.startswith('data:image'):
+                            # Create unique filename for each photo
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            filename = f"customer_{customer_key}_{timestamp}_{i+1}.jpg"
+                            
+                            success, full_path, error_msg = process_and_save_image(
+                                photo, 
+                                filename, 
+                                app.config['CUSTOMER_PHOTOS_FOLDER'],
+                                compress=True
+                            )
+                            
+                            if success:
+                                processed_photos.append(f"customer_photos/{filename}")
+                                print(f'Transaction creation: Processed photo {i+1} of {len(photo_array)}')
+                            else:
+                                print(f'Failed to process photo {i+1}: {error_msg}')
+                                processed_photos.append(photo)  # Keep original if processing fails
+                        else:
+                            processed_photos.append(photo)
+                    
+                    # Store as JSON array if multiple photos, single string if one photo
+                    if len(processed_photos) > 1:
+                        processed_photo = json.dumps(processed_photos)
+                        print(f'Transaction creation: Saved {len(processed_photos)} photos as JSON array')
+                    elif len(processed_photos) == 1:
+                        processed_photo = processed_photos[0]
+                        print(f'Transaction creation: Saved single photo')
+                    else:
+                        processed_photo = recipient_photo
+                else:
+                    processed_photo = recipient_photo
+            except (ValueError, TypeError):
+                # Not JSON, handle as single photo
+                if recipient_photo.startswith('data:image'):
+                    # Process single base64 photo
+                    recipient_name = data.get('recipient_name', 'Unknown')
+                    recipient_phone = data.get('recipient_phone', '')
+                    customer_key = f"{recipient_name}_{recipient_phone}".replace(' ', '_').replace('+', '').replace('(', '').replace(')', '')
+                    filename = f"customer_{customer_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                    
+                    success, full_path, error_msg = process_and_save_image(
+                        recipient_photo, 
+                        filename, 
+                        app.config['CUSTOMER_PHOTOS_FOLDER'],
+                        compress=True
+                    )
+                    
+                    if success:
+                        processed_photo = f"customer_photos/{filename}"
+                        print(f'Transaction creation: Processed single customer photo')
+                    else:
+                        print(f'Failed to process single transaction photo: {error_msg}')
+                        processed_photo = recipient_photo  # Keep original if processing fails
+                else:
+                    processed_photo = recipient_photo
+        
+        # Add transaction record with processed photo
         cursor.execute('''
             INSERT INTO transactions (barcode, transaction_type, quantity, recipient_name, recipient_phone, recipient_photo, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -483,7 +554,7 @@ def add_transaction():
             data['quantity'],
             data.get('recipient_name'),
             data.get('recipient_phone'),
-            data.get('recipient_photo'),
+            processed_photo,
             data.get('notes')
         ))
         
@@ -503,6 +574,7 @@ def add_transaction():
         return jsonify({'Result': 'Transaction recorded successfully'})
     except Exception as e:
         conn.close()
+        print(f'Error in add_transaction: {e}')
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/transactions', methods=['GET'])
@@ -698,11 +770,58 @@ def bulk_update_transactions():
         
         # Update photo for all transactions with this customer
         if recipient_photo:
+            # Handle JSON array of photos (from multi-item sales)
+            processed_photo = recipient_photo
+            try:
+                import json
+                photo_array = json.loads(recipient_photo)
+                if isinstance(photo_array, list) and len(photo_array) > 0:
+                    # Process and save ALL photos from the array
+                    processed_photos = []
+                    customer_key = f"{recipient_name}_{recipient_phone}".replace(' ', '_').replace('+', '').replace('(', '').replace(')', '')
+                    
+                    for i, photo in enumerate(photo_array):
+                        if photo and photo.startswith('data:image'):
+                            # Create unique filename for each photo
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                            filename = f"customer_{customer_key}_{timestamp}_{i+1}.jpg"
+                            
+                            success, full_path, error_msg = process_and_save_image(
+                                photo, 
+                                filename, 
+                                app.config['CUSTOMER_PHOTOS_FOLDER'],
+                                compress=True
+                            )
+                            
+                            if success:
+                                processed_photos.append(f"customer_photos/{filename}")
+                                print(f'Bulk update: Processed photo {i+1} of {len(photo_array)}')
+                            else:
+                                print(f'Failed to process photo {i+1}: {error_msg}')
+                                processed_photos.append(photo)
+                        else:
+                            processed_photos.append(photo)
+                    
+                    # Store as JSON array if multiple photos, single string if one photo
+                    if len(processed_photos) > 1:
+                        processed_photo = json.dumps(processed_photos)
+                        print(f'Bulk update: Saved {len(processed_photos)} photos as JSON array')
+                    elif len(processed_photos) == 1:
+                        processed_photo = processed_photos[0]
+                        print(f'Bulk update: Saved single photo')
+                    else:
+                        processed_photo = recipient_photo
+                else:
+                    processed_photo = recipient_photo
+            except (ValueError, TypeError):
+                # Not JSON, use original value
+                pass
+            
             cursor.execute('''
                 UPDATE transactions 
                 SET recipient_photo = ?
                 WHERE recipient_name = ? AND recipient_phone = ? AND transaction_type = 'OUT'
-            ''', (recipient_photo, recipient_name, recipient_phone))
+            ''', (processed_photo, recipient_name, recipient_phone))
         
         conn.commit()
         conn.close()
@@ -748,6 +867,22 @@ def update_transaction(transaction_id):
         # Handle photo processing if provided
         new_photo_path = None
         if recipient_photo:
+            # Check if it's a JSON array of photos (from multi-item sales)
+            try:
+                import json
+                photo_array = json.loads(recipient_photo)
+                if isinstance(photo_array, list) and len(photo_array) > 0:
+                    # Process the first photo from the array
+                    first_photo = photo_array[0]
+                    if first_photo and first_photo.startswith('data:image'):
+                        recipient_photo = first_photo
+                        print(f'Processing first photo from array of {len(photo_array)} photos')
+                    else:
+                        recipient_photo = first_photo
+            except (ValueError, TypeError):
+                # Not JSON, continue with original value
+                pass
+            
             if recipient_photo.startswith('data:image'):
                 try:
                     # First, process and save the new compressed customer photo
@@ -1712,7 +1847,7 @@ def find_photo(filename):
     """Serve product location photos"""
     return send_from_directory(app.config['FIND_PHOTOS_FOLDER'], filename)
 
-def compress_image(image_bytes, max_size_kb=500, quality=85, max_width=1200, max_height=1200):
+def compress_image(image_bytes, max_size_kb=300, quality=75, max_width=800, max_height=800):
     """
     Compress image to reduce file size while maintaining quality
     
@@ -1837,7 +1972,7 @@ def compress_image(image_bytes, max_size_kb=500, quality=85, max_width=1200, max
 
 def process_and_save_image(base64_data, filename, folder_path, compress=True):
     """
-    Process base64 image data, compress it, and save to specified folder
+    Process base64 image data, compress it intelligently, and save to specified folder
     
     Args:
         base64_data: Base64 encoded image data (with or without data URL prefix)
@@ -1857,13 +1992,28 @@ def process_and_save_image(base64_data, filename, folder_path, compress=True):
         image_bytes = base64.b64decode(base64_data)
         original_size_kb = len(image_bytes) / 1024
         
-        # Compress image if requested and compression is available
-        if compress and COMPRESSION_AVAILABLE:
-            image_bytes = compress_image(image_bytes)
+        # Smart compression: Check if image is already well-compressed from Flutter
+        should_compress = compress and COMPRESSION_AVAILABLE
+        
+        if should_compress:
+            # If image is already small (likely pre-compressed by Flutter), be gentle
+            if original_size_kb <= 200:  # Already well compressed
+                print(f"Image already well-compressed ({original_size_kb:.1f}KB), applying minimal compression")
+                # Use lighter compression settings for pre-compressed images
+                image_bytes = compress_image(image_bytes, max_size_kb=150, quality=90, max_width=600, max_height=600)
+            elif original_size_kb <= 500:  # Moderately compressed
+                print(f"Image moderately compressed ({original_size_kb:.1f}KB), applying standard compression")
+                image_bytes = compress_image(image_bytes, max_size_kb=250, quality=80, max_width=700, max_height=700)
+            else:  # Large image, needs aggressive compression
+                print(f"Large image ({original_size_kb:.1f}KB), applying aggressive compression")
+                image_bytes = compress_image(image_bytes, max_size_kb=300, quality=75, max_width=800, max_height=800)
+            
             compressed_size_kb = len(image_bytes) / 1024
-            print(f"Image compression: {original_size_kb:.1f}KB → {compressed_size_kb:.1f}KB")
+            print(f"Final server compression: {original_size_kb:.1f}KB → {compressed_size_kb:.1f}KB")
         elif compress and not COMPRESSION_AVAILABLE:
             print(f"Compression requested but Pillow not available. Saving original image: {original_size_kb:.1f}KB")
+        else:
+            print(f"Compression disabled. Saving original image: {original_size_kb:.1f}KB")
         
         # Save to file
         full_path = os.path.join(folder_path, filename)
@@ -1975,6 +2125,32 @@ def force_delete_customer_old_photos(customer_name, customer_phone, new_photo_pa
         
     except Exception as e:
         print(f'Error in force_delete_customer_old_photos: {e}')
+
+@app.route('/api/photos/delete', methods=['DELETE'])
+def delete_photo():
+    """Delete a photo file from the server"""
+    try:
+        data = request.json
+        photo_path = data.get('photo_path')
+        
+        if not photo_path:
+            return jsonify({'error': 'Photo path is required'}), 400
+        
+        # Don't delete base64 images
+        if photo_path.startswith('data:image'):
+            return jsonify({'message': 'Base64 images don\'t need server deletion'}), 200
+        
+        # Use the safe delete function
+        success = safe_delete_photo(photo_path)
+        
+        if success:
+            return jsonify({'message': 'Photo deleted successfully'})
+        else:
+            return jsonify({'message': 'Photo not found or still in use by other transactions'})
+    
+    except Exception as e:
+        print(f'Error in delete_photo endpoint: {e}')
+        return jsonify({'error': str(e)}), 500
 
 def get_local_ip():
     """Get the local IP address of the machine"""

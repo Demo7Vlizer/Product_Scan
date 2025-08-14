@@ -464,4 +464,46 @@ class InventoryController {
       rethrow; // Re-throw other errors
     }
   }
+
+  // Delete photo file from server
+  Future<void> deletePhotoFile(String photoPath) async {
+    print('🌐 [InventoryController] Deleting photo: $photoPath');
+    print('🔗 [InventoryController] Request URL: $_baseUrl/api/photos/delete');
+    
+    try {
+      final requestBody = {'photo_path': photoPath};
+      print('📤 [InventoryController] Request body: ${json.encode(requestBody)}');
+      
+      var response = await http.delete(
+        Uri.parse('$_baseUrl/api/photos/delete'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(requestBody),
+      ).timeout(Duration(seconds: 10));
+
+      print('📡 [InventoryController] Response status: ${response.statusCode}');
+      print('📄 [InventoryController] Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        try {
+          var data = json.decode(response.body);
+          print('❌ [InventoryController] Server error: ${data['error']}');
+          throw Exception(data['error'] ?? 'Failed to delete photo');
+        } catch (jsonError) {
+          print('❌ [InventoryController] Parse error: $jsonError');
+          throw Exception('Server returned error ${response.statusCode}: ${response.reasonPhrase}');
+        }
+      } else {
+        print('✅ [InventoryController] Photo deletion successful');
+      }
+    } on TimeoutException {
+      print('⏱️ [InventoryController] Delete request timeout');
+      throw Exception('Request timeout: Server is taking too long to respond');
+    } on SocketException {
+      print('🔌 [InventoryController] Cannot connect to server for delete');
+      throw Exception('Network error: Cannot connect to server');
+    } catch (e) {
+      print('💥 [InventoryController] Delete error: $e');
+      throw Exception('Network error: $e');
+    }
+  }
 }

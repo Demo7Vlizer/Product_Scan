@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -77,8 +79,8 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
   Timer? _searchTimer;
   
   // Photo related variables
-  File? _salePhotoFile;
-  String? _salePhotoBase64;
+  List<File> _salePhotoFiles = [];
+  List<String> _salePhotosBase64 = [];
   bool _isCapturingPhoto = false;
 
   // Responsive breakpoints
@@ -402,37 +404,33 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Sale Photo (Optional)',
-                style: TextStyle(
-                  fontSize: _isTablet ? 20 : 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+              Expanded(
+                child: Text(
+                  'Sale Photos (${_salePhotoFiles.length})',
+                  style: TextStyle(
+                    fontSize: _isTablet ? 18 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (_salePhotoFile == null && !_isCapturingPhoto)
+              if (!_isCapturingPhoto)
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: () => _capturePhoto(ImageSource.camera),
-                      icon: Icon(Icons.camera_alt, size: _isTablet ? 22 : 18),
-                      tooltip: 'Take Photo',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.blue.shade50,
-                        foregroundColor: Colors.blue.shade700,
-                        padding: EdgeInsets.all(_isTablet ? 12 : 8),
-                      ),
+                    _buildCompactActionButton(
+                      icon: Icons.camera_alt,
+                      color: Colors.blue,
+                      onTap: () => _capturePhoto(ImageSource.camera),
+                      tooltip: 'Camera',
                     ),
-                    SizedBox(width: _isTablet ? 8 : 4),
-                    IconButton(
-                      onPressed: () => _capturePhoto(ImageSource.gallery),
-                      icon: Icon(Icons.photo_library, size: _isTablet ? 22 : 18),
-                      tooltip: 'Choose from Gallery',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.green.shade50,
-                        foregroundColor: Colors.green.shade700,
-                        padding: EdgeInsets.all(_isTablet ? 12 : 8),
-                      ),
+                    SizedBox(width: _isTablet ? 6 : 4),
+                    _buildCompactActionButton(
+                      icon: Icons.photo_library,
+                      color: Colors.green,
+                      onTap: () => _capturePhoto(ImageSource.gallery),
+                      tooltip: 'Gallery',
                     ),
                   ],
                 ),
@@ -466,68 +464,63 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
                 ),
               ),
             ),
-          ] else if (_salePhotoFile != null) ...[
-            Container(
-              height: _isTablet ? 120 : 80,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(_isTablet ? 12 : 8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(_isTablet ? 12 : 8),
-                child: Stack(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      height: _isTablet ? 120 : 80,
-                      child: Image.file(
-                        _salePhotoFile!,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Positioned(
-                      top: _isTablet ? 8 : 4,
-                      right: _isTablet ? 8 : 4,
-                      child: GestureDetector(
-                        onTap: _removePhoto,
+          ] else if (_salePhotoFiles.isNotEmpty) ...[
+            // Enhanced photo grid with unlimited scrolling
+            SizedBox(
+              height: _isTablet ? 80 : 65,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _salePhotoFiles.length + 1, // +1 for add button
+                itemBuilder: (context, index) {
+                  if (index == _salePhotoFiles.length) {
+                    // Add more button as last item
+                    return Container(
+                      margin: EdgeInsets.only(left: _isTablet ? 8 : 6),
+                      child: InkWell(
+                        onTap: () => _showPhotoOptions(),
+                        borderRadius: BorderRadius.circular(_isTablet ? 8 : 6),
                         child: Container(
+                          width: _isTablet ? 80 : 65,
+                          height: _isTablet ? 80 : 65,
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(_isTablet ? 16 : 12),
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(_isTablet ? 8 : 6),
+                            border: Border.all(
+                              color: Colors.blue.shade300,
+                              style: BorderStyle.solid,
+                              width: 1.5,
+                            ),
                           ),
-                          padding: EdgeInsets.all(_isTablet ? 6 : 4),
-                          child: Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: _isTablet ? 18 : 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: _isTablet ? 8 : 4,
-                      right: _isTablet ? 8 : 4,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: _isTablet ? 8 : 6, 
-                          vertical: _isTablet ? 4 : 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(_isTablet ? 10 : 8),
-                        ),
-                        child: Text(
-                          'Added',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: _isTablet ? 12 : 10,
-                            fontWeight: FontWeight.w500,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_photo_alternate_outlined,
+                                size: _isTablet ? 24 : 20,
+                                color: Colors.blue.shade600,
+                              ),
+                              SizedBox(height: _isTablet ? 4 : 2),
+                              Text(
+                                'Add',
+                                style: TextStyle(
+                                  fontSize: _isTablet ? 10 : 8,
+                                  color: Colors.blue.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    );
+                  } else {
+                    // Photo thumbnail
+                    return Container(
+                      margin: EdgeInsets.only(right: _isTablet ? 8 : 6),
+                      child: _buildEnhancedPhotoThumbnail(index),
+                    );
+                  }
+                },
               ),
             ),
           ] else ...[
@@ -565,6 +558,109 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(_isTablet ? 6 : 4),
+        child: Container(
+          padding: EdgeInsets.all(_isTablet ? 8 : 6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(_isTablet ? 6 : 4),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Icon(
+            icon,
+            size: _isTablet ? 16 : 14,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+  Widget _buildEnhancedPhotoThumbnail(int index) {
+    return Container(
+      width: _isTablet ? 80 : 65,
+      height: _isTablet ? 80 : 65,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_isTablet ? 8 : 6),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(_isTablet ? 8 : 6),
+            child: SizedBox(
+              width: double.infinity,
+              height: double.infinity,
+              child: Image.file(
+                _salePhotoFiles[index],
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // Photo number indicator
+          Positioned(
+            bottom: 2,
+            left: 2,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${index + 1}',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: _isTablet ? 10 : 8,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          // Remove button
+          Positioned(
+            top: 2,
+            right: 2,
+            child: GestureDetector(
+              onTap: () => _removePhoto(index),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.9),
+                  shape: BoxShape.circle,
+                ),
+                padding: EdgeInsets.all(_isTablet ? 4 : 3),
+                child: Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: _isTablet ? 12 : 10,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -720,7 +816,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
                       ),
                     ],
                   ),
-                  if (_salePhotoFile != null) ...[
+                  if (_salePhotoFiles.isNotEmpty) ...[
                     SizedBox(height: _isTablet ? 12 : 8),
                     Row(
                       children: [
@@ -731,7 +827,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
                         ),
                         SizedBox(width: _isTablet ? 8 : 6),
                         Text(
-                          'Photo attached',
+                          '${_salePhotoFiles.length} photo${_salePhotoFiles.length == 1 ? '' : 's'} attached',
                           style: TextStyle(
                             fontSize: _isTablet ? 14 : 12,
                             color: Colors.green.shade600,
@@ -1210,6 +1306,46 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
     );
   }
 
+  /// Advanced image compression for smaller file sizes
+  Future<File?> _compressImage(File imageFile) async {
+    try {
+      // Get temporary directory for compressed images
+      final Directory tempDir = await getTemporaryDirectory();
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+      final String targetPath = '${tempDir.path}/$fileName';
+      
+      // Compress image with aggressive settings
+      final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        minWidth: 600,        // Reduced from 1200
+        minHeight: 600,       // Reduced from 1200
+        quality: 60,          // Reduced from 85 for smaller size
+        rotate: 0,
+        format: CompressFormat.jpeg,
+      );
+      
+      if (compressedFile != null) {
+        final File compressedImageFile = File(compressedFile.path);
+        
+        // Log compression results
+        final originalSize = await imageFile.length();
+        final compressedSize = await compressedImageFile.length();
+        final compressionRatio = (originalSize / compressedSize).toStringAsFixed(1);
+        
+        print('Image compression: ${(originalSize / 1024).toStringAsFixed(1)}KB → ${(compressedSize / 1024).toStringAsFixed(1)}KB (${compressionRatio}x smaller)');
+        
+        return compressedImageFile;
+      }
+    } catch (e) {
+      print('Error compressing image: $e');
+      // Return original file if compression fails
+      return imageFile;
+    }
+    
+    return null;
+  }
+
   void _capturePhoto(ImageSource source) async {
     setState(() {
       _isCapturingPhoto = true;
@@ -1218,23 +1354,43 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
     try {
       final XFile? photo = await _imagePicker.pickImage(
         source: source,
-        imageQuality: 80,
-        maxWidth: 1024,
-        maxHeight: 1024,
+        maxWidth: 800,          // Reduced from 1024
+        maxHeight: 800,         // Reduced from 1024
+        imageQuality: 70,       // Reduced from 80
       );
 
       if (photo != null) {
-        final File imageFile = File(photo.path);
-        final List<int> imageBytes = await imageFile.readAsBytes();
-        final String base64Image = 'data:image/jpeg;base64,${base64Encode(imageBytes)}';
-
-        setState(() {
-          _salePhotoFile = imageFile;
-          _salePhotoBase64 = base64Image;
-          _isCapturingPhoto = false;
-        });
-
-        _showSuccessSnackBar('Photo added successfully!');
+        final File originalFile = File(photo.path);
+        
+        // Apply additional compression
+        final File? compressedFile = await _compressImage(originalFile);
+        
+        if (compressedFile != null) {
+          final bytes = await compressedFile.readAsBytes();
+          final base64Image = base64Encode(bytes);
+          
+          setState(() {
+            _salePhotoFiles.add(compressedFile);
+            _salePhotosBase64.add('data:image/jpeg;base64,$base64Image');
+            _isCapturingPhoto = false;
+          });
+          
+          // Clean up original file if different from compressed
+          if (originalFile.path != compressedFile.path) {
+            try {
+              await originalFile.delete();
+            } catch (e) {
+              print('Could not delete original file: $e');
+            }
+          }
+          
+          _showSuccessSnackBar('Photo ${_salePhotoFiles.length} added!');
+        } else {
+          setState(() {
+            _isCapturingPhoto = false;
+          });
+          _showErrorSnackBar('Error compressing image');
+        }
       } else {
         setState(() {
           _isCapturingPhoto = false;
@@ -1249,10 +1405,10 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
     }
   }
 
-  void _removePhoto() {
+  void _removePhoto(int index) {
     setState(() {
-      _salePhotoFile = null;
-      _salePhotoBase64 = null;
+      _salePhotoFiles.removeAt(index);
+      _salePhotosBase64.removeAt(index);
     });
     
     _showInfoSnackBar('Photo removed');
@@ -1273,7 +1429,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
           quantity: item.quantity,
           recipientName: _selectedCustomer!.name,
           recipientPhone: _selectedCustomer!.phone,
-          recipientPhoto: _salePhotoBase64,
+          recipientPhoto: _salePhotosBase64.isNotEmpty ? jsonEncode(_salePhotosBase64) : null,
           notes: 'Multi-item sale - Total: ₹${_calculateTotal().toStringAsFixed(2)}',
         );
 
@@ -1287,8 +1443,8 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
       setState(() {
         _cartItems.clear();
         _selectedCustomer = null;
-        _salePhotoFile = null;
-        _salePhotoBase64 = null;
+        _salePhotoFiles.clear();
+        _salePhotosBase64.clear();
       });
 
       Navigator.pop(context, true);
@@ -1834,7 +1990,6 @@ class _ProductScannerPageState extends State<_ProductScannerPage>
   }
 
   void _handleScannedCode(String code) async {
-      print('📱 [Scanner] Barcode scanned: $code');
       setState(() {
         _isLoading = true;
       _hasScanned = true;
@@ -1847,22 +2002,18 @@ class _ProductScannerPageState extends State<_ProductScannerPage>
     }
 
     try {
-      print('🔄 [Scanner] Calling InventoryController.getProduct($code)');
       final product = await _inventoryController.getProduct(code);
       
       if (mounted) {
         if (product != null) {
-          print('✅ [Scanner] Product found: ${product.name}, navigating back with product');
           await Future.delayed(const Duration(milliseconds: 500));
           widget.onProductScanned(product);
           Navigator.pop(context);
         } else {
-          print('❌ [Scanner] Product not found, showing dialog');
           _showProductNotFoundDialog(code);
         }
       }
     } catch (e) {
-      print('💥 [Scanner] Error during product lookup: $e');
       if (mounted) {
         setState(() => _hasScanned = false);
         

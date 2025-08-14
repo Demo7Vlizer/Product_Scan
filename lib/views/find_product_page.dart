@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../controllers/productLocationController.dart';
@@ -91,25 +93,80 @@ class _FindProductPageState extends State<FindProductPage>
     }
   }
 
+  /// Advanced image compression for smaller file sizes
+  Future<File?> _compressImage(File imageFile) async {
+    try {
+      // Get temporary directory for compressed images
+      final Directory tempDir = await getTemporaryDirectory();
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+      final String targetPath = '${tempDir.path}/$fileName';
+      
+      // Compress image with aggressive settings
+      final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        minWidth: 600,        // Reduced from 1200
+        minHeight: 600,       // Reduced from 1200
+        quality: 60,          // Reduced from 85 for smaller size
+        rotate: 0,
+        format: CompressFormat.jpeg,
+      );
+      
+      if (compressedFile != null) {
+        final File compressedImageFile = File(compressedFile.path);
+        
+        // Log compression results
+        final originalSize = await imageFile.length();
+        final compressedSize = await compressedImageFile.length();
+        final compressionRatio = (originalSize / compressedSize).toStringAsFixed(1);
+        
+        print('Image compression: ${(originalSize / 1024).toStringAsFixed(1)}KB → ${(compressedSize / 1024).toStringAsFixed(1)}KB (${compressionRatio}x smaller)');
+        
+        return compressedImageFile;
+      }
+    } catch (e) {
+      print('Error compressing image: $e');
+      // Return original file if compression fails
+      return imageFile;
+    }
+    
+    return null;
+  }
+
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
+        maxWidth: 800,          // Reduced from 1200
+        maxHeight: 800,         // Reduced from 1200
+        imageQuality: 70,       // Reduced from 85
       );
       
       if (image != null) {
-        final File imageFile = File(image.path);
-        final bytes = await imageFile.readAsBytes();
-        final base64Image = base64Encode(bytes);
+        final File originalFile = File(image.path);
         
-        setState(() {
-          _selectedImageFiles.add(imageFile);
-          _selectedImagesBase64.add('data:image/jpeg;base64,$base64Image');
-        });
+        // Apply additional compression
+        final File? compressedFile = await _compressImage(originalFile);
+        
+        if (compressedFile != null) {
+          final bytes = await compressedFile.readAsBytes();
+          final base64Image = base64Encode(bytes);
+          
+          setState(() {
+            _selectedImageFiles.add(compressedFile);
+            _selectedImagesBase64.add('data:image/jpeg;base64,$base64Image');
+          });
+          
+          // Clean up original file if different from compressed
+          if (originalFile.path != compressedFile.path) {
+            try {
+              await originalFile.delete();
+            } catch (e) {
+              print('Could not delete original file: $e');
+            }
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1905,25 +1962,80 @@ class _EditLocationDialogState extends State<EditLocationDialog> {
     super.dispose();
   }
 
+  /// Advanced image compression for edit dialog
+  Future<File?> _compressImageForEdit(File imageFile) async {
+    try {
+      // Get temporary directory for compressed images
+      final Directory tempDir = await getTemporaryDirectory();
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_edit_compressed.jpg';
+      final String targetPath = '${tempDir.path}/$fileName';
+      
+      // Compress image with aggressive settings
+      final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        minWidth: 600,        // Smaller size for uploads
+        minHeight: 600,       // Smaller size for uploads
+        quality: 60,          // Lower quality for smaller files
+        rotate: 0,
+        format: CompressFormat.jpeg,
+      );
+      
+      if (compressedFile != null) {
+        final File compressedImageFile = File(compressedFile.path);
+        
+        // Log compression results
+        final originalSize = await imageFile.length();
+        final compressedSize = await compressedImageFile.length();
+        final compressionRatio = (originalSize / compressedSize).toStringAsFixed(1);
+        
+        print('Edit image compression: ${(originalSize / 1024).toStringAsFixed(1)}KB → ${(compressedSize / 1024).toStringAsFixed(1)}KB (${compressionRatio}x smaller)');
+        
+        return compressedImageFile;
+      }
+    } catch (e) {
+      print('Error compressing edit image: $e');
+      // Return original file if compression fails
+      return imageFile;
+    }
+    
+    return null;
+  }
+
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
+        maxWidth: 800,          // Reduced from 1200
+        maxHeight: 800,         // Reduced from 1200
+        imageQuality: 70,       // Reduced from 85
       );
       
       if (image != null) {
-        final File imageFile = File(image.path);
-        final bytes = await imageFile.readAsBytes();
-        final base64Image = base64Encode(bytes);
+        final File originalFile = File(image.path);
         
-        setState(() {
-          _newImageFiles.add(imageFile);
-          _newImagesBase64.add('data:image/jpeg;base64,$base64Image');
-        });
+        // Apply additional compression
+        final File? compressedFile = await _compressImageForEdit(originalFile);
+        
+        if (compressedFile != null) {
+          final bytes = await compressedFile.readAsBytes();
+          final base64Image = base64Encode(bytes);
+          
+          setState(() {
+            _newImageFiles.add(compressedFile);
+            _newImagesBase64.add('data:image/jpeg;base64,$base64Image');
+          });
+          
+          // Clean up original file if different from compressed
+          if (originalFile.path != compressedFile.path) {
+            try {
+              await originalFile.delete();
+            } catch (e) {
+              print('Could not delete original file: $e');
+            }
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -2710,6 +2822,34 @@ class _LocationDetailsDialogState extends State<LocationDetailsDialog> {
                         ),
                     ],
 
+                    // Fullscreen/Expand icon
+                    Positioned(
+                      top: 20,
+                      right: 20,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              _openFullscreenGallery(context);
+                            },
+                            borderRadius: BorderRadius.circular(22),
+                            child: Icon(
+                              Icons.fullscreen,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     // Photo counter
                     if (widget.imagePaths.length > 1)
                       Positioned(
@@ -2848,6 +2988,322 @@ class _LocationDetailsDialogState extends State<LocationDetailsDialog> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openFullscreenGallery(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FullscreenImageGallery(
+          images: widget.imagePaths,
+          initialIndex: _currentImageIndex,
+        ),
+      ),
+    );
+  }
+}
+
+// Fullscreen Image Gallery Widget
+class FullscreenImageGallery extends StatefulWidget {
+  final List<String> images;
+  final int initialIndex;
+
+  const FullscreenImageGallery({
+    Key? key,
+    required this.images,
+    this.initialIndex = 0,
+  }) : super(key: key);
+
+  @override
+  State<FullscreenImageGallery> createState() => _FullscreenImageGalleryState();
+}
+
+class _FullscreenImageGalleryState extends State<FullscreenImageGallery> {
+  late PageController _pageController;
+  late int _currentIndex;
+  bool _isZoomed = false;
+  late List<TransformationController> _transformationControllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+    
+    // Create a transformation controller for each image
+    _transformationControllers = List.generate(
+      widget.images.length,
+      (index) => TransformationController(),
+    );
+    
+    // Listen to transformation changes for all controllers
+    for (int i = 0; i < _transformationControllers.length; i++) {
+      _transformationControllers[i].addListener(() {
+        final scale = _transformationControllers[i].value.getMaxScaleOnAxis();
+        final newZoomState = scale > 1.0;
+        if (newZoomState != _isZoomed && i == _currentIndex) {
+          setState(() {
+            _isZoomed = newZoomState;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    for (var controller in _transformationControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(
+          '${_currentIndex + 1} of ${widget.images.length}',
+          style: TextStyle(color: Colors.white),
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Main image viewer with smart gesture handling
+          PageView.builder(
+            controller: _pageController,
+            physics: _isZoomed ? NeverScrollableScrollPhysics() : ClampingScrollPhysics(),
+            onPageChanged: (index) {
+              // Update zoom state for the new current page
+              final scale = _transformationControllers[index].value.getMaxScaleOnAxis();
+              setState(() {
+                _currentIndex = index;
+                _isZoomed = scale > 1.0;
+              });
+            },
+            itemCount: widget.images.length,
+            itemBuilder: (context, index) {
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: GestureDetector(
+                  onDoubleTap: () {
+                    // Double tap to zoom in/out
+                    final controller = _transformationControllers[index];
+                    final scale = controller.value.getMaxScaleOnAxis();
+                    
+                    if (scale > 1.0) {
+                      // Zoom out to normal
+                      controller.value = Matrix4.identity();
+                    } else {
+                      // Zoom in to 2x
+                      controller.value = Matrix4.identity()..scale(2.0);
+                    }
+                  },
+                  child: InteractiveViewer(
+                    panEnabled: true,
+                    scaleEnabled: true,
+                    boundaryMargin: EdgeInsets.all(10),
+                    minScale: 0.8,
+                    maxScale: 5.0,
+                    clipBehavior: Clip.none,
+                    transformationController: _transformationControllers[index],
+                    onInteractionUpdate: (details) {
+                      // Update zoom state only for current page
+                      if (index == _currentIndex) {
+                        final scale = _transformationControllers[index].value.getMaxScaleOnAxis();
+                        final newZoomState = scale > 1.0;
+                        if (newZoomState != _isZoomed) {
+                          setState(() {
+                            _isZoomed = newZoomState;
+                          });
+                        }
+                      }
+                    },
+                    child: Center(
+                      child: Image.network(
+                      '${RequestClient.baseUrl}/uploads/${widget.images[index]}',
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: Colors.white54,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Failed to load image',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // Navigation arrows for multiple images (hidden when zoomed)
+          if (widget.images.length > 1 && !_isZoomed) ...[
+            // Left arrow
+            if (_currentIndex > 0)
+              Positioned(
+                left: 20,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          _pageController.previousPage(
+                            duration: Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(25),
+                        child: Icon(
+                          Icons.chevron_left,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Right arrow
+            if (_currentIndex < widget.images.length - 1)
+              Positioned(
+                right: 20,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          _pageController.nextPage(
+                            duration: Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(25),
+                        child: Icon(
+                          Icons.chevron_right,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+
+          // Thumbnail strip at bottom (for multiple images, hidden when zoomed)
+          if (widget.images.length > 1 && !_isZoomed)
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 80,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.images.length,
+                  itemBuilder: (context, index) {
+                    final isSelected = index == _currentIndex;
+                    return GestureDetector(
+                      onTap: () {
+                        _pageController.animateToPage(
+                          index,
+                          duration: Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      },
+                      child: Container(
+                        width: 60,
+                        height: 60,
+                        margin: EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected ? Colors.white : Colors.grey.shade600,
+                            width: isSelected ? 3 : 1,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.network(
+                            '${RequestClient.baseUrl}/uploads/${widget.images[index]}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey.shade800,
+                                child: Icon(
+                                  Icons.error,
+                                  size: 20,
+                                  color: Colors.white54,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

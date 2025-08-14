@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../controllers/inventoryController.dart';
 import '../models/transaction.dart';
@@ -468,6 +470,19 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
       return;
     }
 
+    // Parse photos to determine if single or multiple
+    List<String> photos = [];
+    try {
+      final dynamic parsed = jsonDecode(sale.recipientPhoto!);
+      if (parsed is List) {
+        photos = parsed.cast<String>();
+      } else {
+        photos = [sale.recipientPhoto!];
+      }
+    } catch (e) {
+      photos = [sale.recipientPhoto!];
+    }
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -512,7 +527,7 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Customer Photo',
+                              photos.length > 1 ? 'Customer Photos' : 'Customer Photo',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
@@ -520,7 +535,7 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                               ),
                             ),
                             Text(
-                              '${sale.recipientName ?? 'Unknown Customer'}',
+                              '${sale.recipientName ?? 'Unknown Customer'}${photos.length > 1 ? ' (${photos.length} photos)' : ''}',
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.9),
                                 fontSize: 14,
@@ -618,10 +633,10 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                                 ),
                               ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: _buildPhotoWidget(sale.recipientPhoto!),
-                            ),
+                                                          child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: _buildEnhancedPhotoCarousel(photos, sale),
+                              ),
                           ),
                         ),
                         
@@ -656,32 +671,88 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
     );
   }
 
-  Widget _buildPhotoWidget(String photoPath) {
+
+
+  Widget _buildSinglePhoto(String photoPath) {
+    print('=== _buildSinglePhoto called ===');
+    print('Photo path type: ${photoPath.startsWith('data:image') ? 'base64' : 'file path'}');
+    print('Photo path preview: ${photoPath.length > 50 ? photoPath.substring(0, 50) + '...' : photoPath}');
+    
     // Check if it's a base64 image or file path
     if (photoPath.startsWith('data:image')) {
       // Base64 image
       try {
-        final bytes = Uri.parse(photoPath).data!.contentAsBytes();
+        print('Attempting to parse base64 image...');
+        Uint8List bytes;
+        
+        if (photoPath.contains(',')) {
+          // Data URL format: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...
+          final base64String = photoPath.split(',').last;
+          print('Extracted base64 string length: ${base64String.length}');
+          bytes = base64Decode(base64String);
+        } else {
+          // Direct base64 string
+          print('Direct base64 string length: ${photoPath.length}');
+          bytes = base64Decode(photoPath);
+        }
+        
+        print('Successfully decoded ${bytes.length} bytes');
         return Image.memory(
           bytes,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
-            print('Error loading base64 image: $error');
+            print('Error displaying base64 image: $error');
+            print('Bytes length: ${bytes.length}');
             return _buildPhotoErrorWidget();
           },
         );
       } catch (e) {
         print('Exception parsing base64 image: $e');
-        return _buildPhotoErrorWidget();
+        print('PhotoPath starts with: ${photoPath.substring(0, math.min(100, photoPath.length))}');
+        
+        // Return diagnostic info instead of error widget for debugging
+        return Container(
+          height: 200,
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.bug_report, size: 48, color: Colors.orange),
+              SizedBox(height: 8),
+              Text(
+                'Debug Info',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Error: $e',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Path starts: ${photoPath.substring(0, math.min(50, photoPath.length))}...',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 10, fontFamily: 'monospace'),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Length: ${photoPath.length}',
+                style: TextStyle(fontSize: 10),
+              ),
+            ],
+          ),
+        );
       }
     } else {
       // File path - assume it's on the server
       try {
-        // Make sure photoPath doesn't have any URL-unsafe characters
-        final sanitizedPath = Uri.encodeComponent(photoPath);
-        final imageUrl = '${_inventoryController.baseUrl}/uploads/$sanitizedPath';
+        // Don't encode the entire path, just build the URL correctly
+        final imageUrl = '${_inventoryController.baseUrl}/uploads/$photoPath';
         
         print('Loading image from URL: $imageUrl');
+        print('Base URL: ${_inventoryController.baseUrl}');
+        print('Original path: $photoPath');
         
         return Image.network(
           imageUrl,
@@ -703,6 +774,8 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
           },
           errorBuilder: (context, error, stackTrace) {
             print('Error loading image from network: $error');
+            print('Error stackTrace: $stackTrace');
+            print('Failed URL: $imageUrl');
             return _buildPhotoErrorWidget();
           },
         );
@@ -710,7 +783,251 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
         print('Exception loading network image: $e');
         return _buildPhotoErrorWidget();
       }
+          }
     }
+
+  Widget _buildEnhancedPhotoCarousel(List<String> photos, Transaction sale) {
+    return StatefulBuilder(
+      builder: (context, setState) {
+        int currentIndex = 0;
+        
+        return Column(
+          children: [
+            // Photo navigation and controls
+            if (photos.length > 1) ...[
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    // Previous button
+                    IconButton(
+                      onPressed: currentIndex > 0 ? () {
+                        setState(() {
+                          currentIndex--;
+                        });
+                      } : null,
+                      icon: Icon(Icons.arrow_back_ios),
+                      color: currentIndex > 0 ? Color(0xFF4A7C3C) : Colors.grey.shade400,
+                      tooltip: 'Previous photo',
+                    ),
+                    
+                    Expanded(
+                      child: Column(
+                        children: [
+                          // Photo counter
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF4A7C3C), Color(0xFF6B9B4F)],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'Photo ${currentIndex + 1} of ${photos.length}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          
+                          SizedBox(height: 8),
+                          
+                          // Photo indicators
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(photos.length, (index) {
+                              return Container(
+                                margin: EdgeInsets.symmetric(horizontal: 3),
+                                width: index == currentIndex ? 24 : 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: index == currentIndex 
+                                      ? Color(0xFF4A7C3C) 
+                                      : Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Next button
+                    IconButton(
+                      onPressed: currentIndex < photos.length - 1 ? () {
+                        setState(() {
+                          currentIndex++;
+                        });
+                      } : null,
+                      icon: Icon(Icons.arrow_forward_ios),
+                      color: currentIndex < photos.length - 1 ? Color(0xFF4A7C3C) : Colors.grey.shade400,
+                      tooltip: 'Next photo',
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+            ],
+            
+            // Current photo with swipe gesture
+            Expanded(
+              child: GestureDetector(
+                onHorizontalDragEnd: photos.length > 1 ? (DragEndDetails details) {
+                  if (details.primaryVelocity != null) {
+                    if (details.primaryVelocity! > 0 && currentIndex > 0) {
+                      // Swiped right - previous photo
+                      setState(() {
+                        currentIndex--;
+                      });
+                    } else if (details.primaryVelocity! < 0 && currentIndex < photos.length - 1) {
+                      // Swiped left - next photo
+                      setState(() {
+                        currentIndex++;
+                      });
+                    }
+                  }
+                } : null,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: _buildSinglePhoto(photos[currentIndex]),
+                  ),
+                ),
+              ),
+            ),
+            
+            SizedBox(height: 16),
+            
+            // Action buttons
+            Row(
+              children: [
+                // Edit button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _editSale(sale);
+                    },
+                    icon: Icon(Icons.edit, color: Color(0xFF4A7C3C)),
+                    label: Text('Edit Sale', style: TextStyle(color: Color(0xFF4A7C3C))),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Color(0xFF4A7C3C)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(width: 12),
+                
+                // Close button
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(Icons.close, color: Colors.white),
+                    label: Text('Close', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF4A7C3C),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+    Widget _buildMultiplePhotosWidget(List<String> photos) {
+    return StatefulBuilder(
+      builder: (context, setState) {
+        int currentIndex = 0;
+        
+        return Column(
+          children: [
+            // Photo counter and navigation
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Previous button
+                  IconButton(
+                    onPressed: currentIndex > 0 ? () {
+                      setState(() {
+                        currentIndex--;
+                      });
+                    } : null,
+                    icon: Icon(Icons.chevron_left),
+                    color: currentIndex > 0 ? Color(0xFF4A7C3C) : Colors.grey,
+                  ),
+                  
+                  // Photo counter
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF4A7C3C),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${currentIndex + 1} / ${photos.length}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  
+                  // Next button
+                  IconButton(
+                    onPressed: currentIndex < photos.length - 1 ? () {
+                      setState(() {
+                        currentIndex++;
+                      });
+                    } : null,
+                    icon: Icon(Icons.chevron_right),
+                    color: currentIndex < photos.length - 1 ? Color(0xFF4A7C3C) : Colors.grey,
+                  ),
+                ],
+              ),
+            ),
+            
+            SizedBox(height: 12),
+            
+            // Current photo
+            Expanded(
+              child: _buildSinglePhoto(photos[currentIndex]),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildPhotoErrorWidget() {
@@ -863,13 +1180,39 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
   void _viewPhotoFullscreen(BuildContext context, Transaction sale) {
     if (sale.recipientPhoto == null || sale.recipientPhoto!.isEmpty) return;
     
+    // Parse photos - could be single photo or JSON array
+    List<String> photos = [];
+    try {
+      final dynamic parsed = jsonDecode(sale.recipientPhoto!);
+      if (parsed is List) {
+        photos = parsed.cast<String>();
+        print('Fullscreen: Found ${photos.length} photos in array');
+      } else {
+        photos = [sale.recipientPhoto!];
+        print('Fullscreen: Single photo (not array)');
+      }
+    } catch (e) {
+      photos = [sale.recipientPhoto!];
+      print('Fullscreen: JSON parsing failed, treating as single photo');
+    }
+    
     showDialog(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.9),
       builder: (context) => Dialog.fullscreen(
         backgroundColor: Colors.black,
-        child: Stack(
+        child: _buildFullscreenPhotoViewer(photos, sale),
+      ),
+    );
+  }
+
+  Widget _buildFullscreenPhotoViewer(List<String> photos, Transaction sale) {
+    return StatefulBuilder(
+      builder: (context, setState) {
+        int currentIndex = 0;
+        
+        return Stack(
           children: [
             // Photo in center
             Center(
@@ -878,47 +1221,104 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                 scaleEnabled: true,
                 minScale: 0.5,
                 maxScale: 3.0,
-                child: sale.recipientPhoto!.startsWith('data:image')
-                    ? Builder(
-                        builder: (context) {
-                          try {
-                            final bytes = base64Decode(sale.recipientPhoto!.split(',')[1]);
-                            return Image.memory(
-                              bytes,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                print('Error loading base64 image in fullscreen: $error');
-                                return _buildFullscreenErrorWidget();
-                              },
-                            );
-                          } catch (e) {
-                            print('Exception parsing base64 image in fullscreen: $e');
-                            return _buildFullscreenErrorWidget();
-                          }
-                        },
-                      )
-                    : Image.network(
-                        '${RequestClient.baseUrl}/uploads/${Uri.encodeComponent(sale.recipientPhoto!)}',
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                  : null,
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          print('Error loading network image in fullscreen: $error');
-                          return _buildFullscreenErrorWidget();
-                        },
-                      ),
+                child: GestureDetector(
+                  onHorizontalDragEnd: photos.length > 1 ? (DragEndDetails details) {
+                    if (details.primaryVelocity != null) {
+                      if (details.primaryVelocity! > 0 && currentIndex > 0) {
+                        // Swiped right - previous photo
+                        setState(() {
+                          currentIndex--;
+                        });
+                      } else if (details.primaryVelocity! < 0 && currentIndex < photos.length - 1) {
+                        // Swiped left - next photo
+                        setState(() {
+                          currentIndex++;
+                        });
+                      }
+                    }
+                  } : null,
+                  child: _buildFullscreenSinglePhoto(photos[currentIndex]),
+                ),
               ),
             ),
+            
+            // Navigation arrows for multiple photos
+            if (photos.length > 1) ...[
+              // Previous button
+              if (currentIndex > 0)
+                Positioned(
+                  left: 20,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            currentIndex--;
+                          });
+                        },
+                        icon: Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
+                        iconSize: 48,
+                      ),
+                    ),
+                  ),
+                ),
+              
+              // Next button
+              if (currentIndex < photos.length - 1)
+                Positioned(
+                  right: 20,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            currentIndex++;
+                          });
+                        },
+                        icon: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 24),
+                        iconSize: 48,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+            
+            // Photo counter for multiple photos
+            if (photos.length > 1)
+              Positioned(
+                top: 60,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${currentIndex + 1} of ${photos.length}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             // Header with customer info and close button
             Positioned(
               top: 0,
@@ -1009,9 +1409,57 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  Widget _buildFullscreenSinglePhoto(String photoPath) {
+    print('Fullscreen single photo: ${photoPath.length > 50 ? photoPath.substring(0, 50) + '...' : photoPath}');
+    
+    if (photoPath.startsWith('data:image')) {
+      // Base64 image
+      try {
+        final bytes = base64Decode(photoPath.split(',')[1]);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading base64 image in fullscreen: $error');
+            return _buildFullscreenErrorWidget();
+          },
+        );
+      } catch (e) {
+        print('Exception parsing base64 image in fullscreen: $e');
+        return _buildFullscreenErrorWidget();
+      }
+    } else {
+      // File path - assume it's on the server
+      final imageUrl = '${RequestClient.baseUrl}/uploads/$photoPath';
+      print('Fullscreen loading image from URL: $imageUrl');
+      
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading network image in fullscreen: $error');
+          print('Failed URL: $imageUrl');
+          return _buildFullscreenErrorWidget();
+        },
+      );
+    }
   }
   
   Widget _buildFullscreenErrorWidget() {

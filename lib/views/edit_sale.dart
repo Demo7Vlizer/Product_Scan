@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import '../controllers/inventoryController.dart';
 import '../models/transaction.dart';
 import 'camera.dart';
@@ -29,11 +32,12 @@ class _EditSalePageState extends State<EditSalePage> {
   // Sale items
   List<SaleItem> _saleItems = [];
   
-  // Photo data
-  String? _customerPhotoBase64;
-  File? _customerPhotoFile;
+  // Photo data - Support multiple photos
+  List<String> _customerPhotosBase64 = [];
+  List<File> _customerPhotoFiles = [];
   bool _hasExistingPhoto = false;
   bool _isCapturingPhoto = false;
+  int _currentPhotoIndex = 0;
   
   // Loading state
   bool _isSaving = false;
@@ -56,10 +60,22 @@ class _EditSalePageState extends State<EditSalePage> {
     _selectedCustomerPhone = widget.sale.recipientPhone;
     _customerSearchController.text = _selectedCustomerName ?? '';
     
-    // Check for existing photo
+    // Check for existing photos
     if (widget.sale.recipientPhoto != null && widget.sale.recipientPhoto!.isNotEmpty) {
       _hasExistingPhoto = true;
-      _customerPhotoBase64 = widget.sale.recipientPhoto;
+      
+      // Handle both single photo and JSON array of photos
+      try {
+        final dynamic parsed = jsonDecode(widget.sale.recipientPhoto!);
+        if (parsed is List) {
+          _customerPhotosBase64 = parsed.cast<String>();
+        } else {
+          _customerPhotosBase64 = [widget.sale.recipientPhoto!];
+        }
+      } catch (e) {
+        // Not JSON, treat as single photo
+        _customerPhotosBase64 = [widget.sale.recipientPhoto!];
+      }
     }
     
     // Load all items from this sale (by matching customer and date)
@@ -823,13 +839,13 @@ class _EditSalePageState extends State<EditSalePage> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
+        children: [
+          Row(
+            children: [
               Icon(Icons.camera_alt_outlined, color: Colors.grey.shade600, size: 20),
               SizedBox(width: 8),
               Text(
-                'Photo (Optional)',
+                'Photos (Optional)',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -838,9 +854,9 @@ class _EditSalePageState extends State<EditSalePage> {
               ),
               if (_hasExistingPhoto) ...[
                 Spacer(),
-                        Container(
+                Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
+                  decoration: BoxDecoration(
                     color: Colors.green.shade100,
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -850,170 +866,304 @@ class _EditSalePageState extends State<EditSalePage> {
                       Icon(Icons.photo_camera, color: Colors.green.shade700, size: 12),
                       SizedBox(width: 4),
                       Text(
-                        'Photo Available',
-                            style: TextStyle(
+                        '${_customerPhotosBase64.length} Photo${_customerPhotosBase64.length > 1 ? 's' : ''}',
+                        style: TextStyle(
                           color: Colors.green.shade700,
                           fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ],
-                        ),
-                        
+          ),
+          
           SizedBox(height: 16),
-                        
-          // Photo preview if available
-          if (_customerPhotoFile != null) ...[
-                        Container(
-              margin: EdgeInsets.symmetric(vertical: 8),
-              padding: EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.green.shade200, width: 2),
+          
+          // Photo carousel if photos exist
+          if (_customerPhotosBase64.isNotEmpty) ...[
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
               ),
-              child: Column(
+              child: Stack(
                 children: [
-                  // Success indicator
-                    Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(8),
+                  // Current photo with swipe gesture
+                  GestureDetector(
+                    onHorizontalDragEnd: _customerPhotosBase64.length > 1 ? (DragEndDetails details) {
+                      if (details.primaryVelocity != null) {
+                        if (details.primaryVelocity! > 0 && _currentPhotoIndex > 0) {
+                          // Swiped right - previous photo
+                          _previousPhoto();
+                        } else if (details.primaryVelocity! < 0 && _currentPhotoIndex < _customerPhotosBase64.length - 1) {
+                          // Swiped left - next photo
+                          _nextPhoto();
+                        }
+                      }
+                    } : null,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _buildPhotoWidget(_customerPhotosBase64[_currentPhotoIndex]),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          'Photo Captured',
-                        style: TextStyle(
-                            color: Colors.green.shade700,
+                  ),
+                  
+                  // Photo navigation overlay - always show for multiple photos
+                  if (_customerPhotosBase64.length > 1) ...[
+                    // Previous button
+                    Positioned(
+                      left: 8,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            onPressed: _currentPhotoIndex > 0 ? _previousPhoto : null,
+                            icon: Icon(
+                              Icons.arrow_back_ios, 
+                              color: _currentPhotoIndex > 0 ? Colors.white : Colors.white54, 
+                              size: 18
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // Next button
+                    Positioned(
+                      right: 8,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            onPressed: _currentPhotoIndex < _customerPhotosBase64.length - 1 ? _nextPhoto : null,
+                            icon: Icon(
+                              Icons.arrow_forward_ios, 
+                              color: _currentPhotoIndex < _customerPhotosBase64.length - 1 ? Colors.white : Colors.white54, 
+                              size: 18
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // Photo counter
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Text(
+                          '${_currentPhotoIndex + 1} / ${_customerPhotosBase64.length}',
+                          style: TextStyle(
+                            color: Colors.white, 
                             fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w500
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  // Photo preview
-                    Container(
-                    height: 120,
-            width: double.infinity,
+                  
+                  // Delete button
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
                       decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        _customerPhotoFile!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey.shade100,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.broken_image, size: 32, color: Colors.grey.shade600),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Preview Error',
-                        style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                        color: Colors.red.withOpacity(0.8),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: () => _deletePhoto(_currentPhotoIndex),
+                        icon: Icon(Icons.delete, color: Colors.white, size: 16),
+                        tooltip: 'Delete this photo',
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 16),
           ],
           
           // Action buttons
           Row(
             children: [
-              // Capture/Retake Photo Button
-                    Expanded(
-            child: OutlinedButton.icon(
-                  onPressed: _isCapturingPhoto ? null : _capturePhoto,
+              // Add Photo Button
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isCapturingPhoto ? null : _addPhoto,
                   icon: _isCapturingPhoto 
                     ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Icon(Icons.camera_alt),
+                    : Icon(Icons.add_a_photo),
                   label: Text(
                     _isCapturingPhoto 
-                      ? 'Capturing...' 
-                      : _customerPhotoFile != null 
-                        ? 'Retake Photo' 
-                        : 'Capture Photo'
+                      ? 'Adding...' 
+                      : 'Add Photo'
                   ),
-              style: OutlinedButton.styleFrom(
+                  style: OutlinedButton.styleFrom(
                     foregroundColor: _isCapturingPhoto ? Colors.grey : Colors.blue,
                     side: BorderSide(color: _isCapturingPhoto ? Colors.grey : Colors.blue),
                     padding: EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                        ),
-                      ),
-                    ),
-              
-              // View existing photo button
-              if (_hasExistingPhoto && _customerPhotoFile == null) ...[
-                SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _viewExistingPhoto,
-                    icon: Icon(Icons.photo, size: 16),
-                    label: Text('View Photo'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
+              ),
+              
+              // Quick capture button
+              SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isCapturingPhoto ? null : _capturePhoto,
+                  icon: Icon(Icons.camera_alt, size: 16),
+                  label: Text('Quick Capture'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
-              ],
-            ],
-          ),
-          
-          // Alternative: Pick from Gallery (for testing)
-          SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              onPressed: _isCapturingPhoto ? null : _pickFromGallery,
-              icon: Icon(Icons.photo_library, size: 16),
-              label: Text('Pick from Gallery (Alternative)'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey.shade600,
-                padding: EdgeInsets.symmetric(vertical: 8),
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildPhotoWidget(String photoPath) {
+    // Check if it's a base64 image or file path
+    if (photoPath.startsWith('data:image')) {
+      // Base64 image
+      try {
+        Uint8List bytes;
+        
+        if (photoPath.contains(',')) {
+          // Data URL format: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...
+          final base64String = photoPath.split(',').last;
+          bytes = base64Decode(base64String);
+        } else {
+          // Direct base64 string
+          bytes = base64Decode(photoPath);
+        }
+        
+        return Image.memory(
+          bytes,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.grey.shade100,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.broken_image, size: 32, color: Colors.grey.shade600),
+                    SizedBox(height: 8),
+                    Text(
+                      'Error loading photo',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      } catch (e) {
+        return Container(
+          color: Colors.grey.shade100,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error, size: 32, color: Colors.red.shade400),
+                SizedBox(height: 8),
+                Text(
+                  'Invalid photo data',
+                  style: TextStyle(color: Colors.red.shade600, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } else {
+      // File path - assume it's on the server
+      final imageUrl = '${_inventoryController.baseUrl}/uploads/$photoPath';
+      
+      return Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                color: Color(0xFF4A7C3C),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey.shade100,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_off, size: 32, color: Colors.grey.shade600),
+                  SizedBox(height: 8),
+                  Text(
+                    'Unable to load photo',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
   }
 
   Widget _buildBottomActions() {
@@ -1192,6 +1342,170 @@ class _EditSalePageState extends State<EditSalePage> {
 
 
 
+  /// Advanced image compression for smaller file sizes
+  Future<File?> _compressImage(File imageFile) async {
+    try {
+      // Get temporary directory for compressed images
+      final Directory tempDir = await getTemporaryDirectory();
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+      final String targetPath = '${tempDir.path}/$fileName';
+      
+      // Compress image with aggressive settings
+      final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        minWidth: 600,        // Reduced from 1200
+        minHeight: 600,       // Reduced from 1200
+        quality: 60,          // Reduced from 85 for smaller size
+        rotate: 0,
+        format: CompressFormat.jpeg,
+      );
+      
+      if (compressedFile != null) {
+        final File compressedImageFile = File(compressedFile.path);
+        
+        // Log compression results
+        final originalSize = await imageFile.length();
+        final compressedSize = await compressedImageFile.length();
+        final compressionRatio = (originalSize / compressedSize).toStringAsFixed(1);
+        
+        print('Image compression: ${(originalSize / 1024).toStringAsFixed(1)}KB → ${(compressedSize / 1024).toStringAsFixed(1)}KB (${compressionRatio}x smaller)');
+        
+        return compressedImageFile;
+      }
+    } catch (e) {
+      print('Error compressing image: $e');
+      // Return original file if compression fails
+      return imageFile;
+    }
+    
+    return null;
+  }
+
+  // Photo management methods
+  void _addPhoto() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Add Photo'),
+        content: Text('Choose photo source'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _capturePhoto();
+            },
+            child: Text('Camera'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _pickFromGallery();
+            },
+            child: Text('Gallery'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deletePhoto(int index) {
+    if (index >= 0 && index < _customerPhotosBase64.length) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Delete Photo'),
+          content: Text('Are you sure you want to delete this photo?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _confirmDeletePhoto(index);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text('Delete', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _confirmDeletePhoto(int index) async {
+    final photoToDelete = _customerPhotosBase64[index];
+    print('🗑️ Attempting to delete photo: $photoToDelete');
+    
+    // If it's a server file path, try to delete from server
+    if (!photoToDelete.startsWith('data:image')) {
+      try {
+        print('📡 Sending delete request to server...');
+        await _inventoryController.deletePhotoFile(photoToDelete);
+        print('✅ Successfully deleted photo from server: $photoToDelete');
+      } catch (e) {
+        print('❌ Failed to delete photo from server: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Warning: Could not delete from server: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        // Continue with local deletion even if server deletion fails
+      }
+    } else {
+      print('📱 Deleting base64 photo (local only)');
+    }
+    
+    setState(() {
+      _customerPhotosBase64.removeAt(index);
+      if (index < _customerPhotoFiles.length) {
+        _customerPhotoFiles.removeAt(index);
+      }
+      
+      // Update current index
+      if (_customerPhotosBase64.isEmpty) {
+        _hasExistingPhoto = false;
+        _currentPhotoIndex = 0;
+      } else if (_currentPhotoIndex >= _customerPhotosBase64.length) {
+        _currentPhotoIndex = _customerPhotosBase64.length - 1;
+      }
+    });
+    
+    print('🔄 Photo deleted from local array. Remaining photos: ${_customerPhotosBase64.length}');
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Photo deleted successfully'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _nextPhoto() {
+    if (_currentPhotoIndex < _customerPhotosBase64.length - 1) {
+      setState(() {
+        _currentPhotoIndex++;
+      });
+    }
+  }
+
+  void _previousPhoto() {
+    if (_currentPhotoIndex > 0) {
+      setState(() {
+        _currentPhotoIndex--;
+      });
+    }
+  }
+
   void _capturePhoto() async {
     setState(() {
       _isCapturingPhoto = true;
@@ -1221,9 +1535,9 @@ class _EditSalePageState extends State<EditSalePage> {
       
       final XFile? photo = await picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 85,
-        maxHeight: 1200,
-        maxWidth: 1200,
+        maxWidth: 800,          // Reduced from 1200
+        maxHeight: 800,         // Reduced from 1200
+        imageQuality: 70,       // Reduced from 85
       );
       
       // Close loading dialog
@@ -1234,55 +1548,71 @@ class _EditSalePageState extends State<EditSalePage> {
       if (photo != null) {
         print('Photo captured: ${photo.path}');
         
-        // Convert to File and base64
-        final File imageFile = File(photo.path);
+        final File originalFile = File(photo.path);
         
         // Check if file exists
-        if (!await imageFile.exists()) {
+        if (!await originalFile.exists()) {
           throw Exception('Photo file not found after capture');
         }
         
-        final List<int> imageBytes = await imageFile.readAsBytes();
-        print('Image bytes length: ${imageBytes.length}');
+        // Apply additional compression
+        final File? compressedFile = await _compressImage(originalFile);
         
-        if (imageBytes.isEmpty) {
-          throw Exception('Photo file is empty');
+        if (compressedFile != null) {
+          final bytes = await compressedFile.readAsBytes();
+          print('Compressed image bytes length: ${bytes.length}');
+          
+          if (bytes.isEmpty) {
+            throw Exception('Compressed photo file is empty');
+          }
+          
+          final base64Image = base64Encode(bytes);
+          print('Base64 image length: ${base64Image.length}');
+          
+          setState(() {
+            _customerPhotoFiles.add(compressedFile);
+            _customerPhotosBase64.add('data:image/jpeg;base64,$base64Image');
+            _hasExistingPhoto = true; // Mark as having photos
+            _currentPhotoIndex = _customerPhotosBase64.length - 1; // Show newest photo
+          });
+          
+          // Clean up original file if different from compressed
+          if (originalFile.path != compressedFile.path) {
+            try {
+              await originalFile.delete();
+            } catch (e) {
+              print('Could not delete original file: $e');
+            }
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Photo captured successfully! Preview shown below.',
+                style: TextStyle(fontSize: 14),
+              ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          
+          print('Photo capture completed successfully');
+        } else {
+          throw Exception('Failed to compress image');
         }
-        
-        final String base64Image = base64Encode(imageBytes);
-        print('Base64 image length: ${base64Image.length}');
-        
-        setState(() {
-          _customerPhotoFile = imageFile;
-          _customerPhotoBase64 = 'data:image/jpeg;base64,$base64Image';
-          _hasExistingPhoto = true; // Mark as having a photo
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Photo captured successfully! Preview shown below.',
-              style: TextStyle(fontSize: 14),
-            ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        
-        print('Photo capture completed successfully');
       } else {
         print('Photo capture cancelled by user');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1348,37 +1678,50 @@ class _EditSalePageState extends State<EditSalePage> {
       
       final XFile? photo = await picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 85,
-        maxHeight: 1200,
-        maxWidth: 1200,
+        maxWidth: 800,          // Reduced from 1200
+        maxHeight: 800,         // Reduced from 1200
+        imageQuality: 70,       // Reduced from 85
       );
       
       if (photo != null) {
         print('Photo selected from gallery: ${photo.path}');
         
-        // Convert to File and base64
-        final File imageFile = File(photo.path);
+        final File originalFile = File(photo.path);
         
         // Check if file exists
-        if (!await imageFile.exists()) {
+        if (!await originalFile.exists()) {
           throw Exception('Photo file not found after selection');
         }
         
-        final List<int> imageBytes = await imageFile.readAsBytes();
-        print('Image bytes length: ${imageBytes.length}');
+        // Apply additional compression
+        final File? compressedFile = await _compressImage(originalFile);
         
-        if (imageBytes.isEmpty) {
-          throw Exception('Photo file is empty');
-        }
-        
-        final String base64Image = base64Encode(imageBytes);
-        print('Base64 image length: ${base64Image.length}');
-        
-        setState(() {
-          _customerPhotoFile = imageFile;
-          _customerPhotoBase64 = 'data:image/jpeg;base64,$base64Image';
-          _hasExistingPhoto = true; // Mark as having a photo
-        });
+        if (compressedFile != null) {
+          final bytes = await compressedFile.readAsBytes();
+          print('Compressed image bytes length: ${bytes.length}');
+          
+          if (bytes.isEmpty) {
+            throw Exception('Compressed photo file is empty');
+          }
+          
+          final base64Image = base64Encode(bytes);
+          print('Base64 image length: ${base64Image.length}');
+          
+          setState(() {
+            _customerPhotoFiles.add(compressedFile);
+            _customerPhotosBase64.add('data:image/jpeg;base64,$base64Image');
+            _hasExistingPhoto = true; // Mark as having photos
+            _currentPhotoIndex = _customerPhotosBase64.length - 1; // Show newest photo
+          });
+          
+          // Clean up original file if different from compressed
+          if (originalFile.path != compressedFile.path) {
+            try {
+              await originalFile.delete();
+            } catch (e) {
+              print('Could not delete original file: $e');
+            }
+          }
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1405,6 +1748,9 @@ class _EditSalePageState extends State<EditSalePage> {
         );
         
         print('Photo selection completed successfully');
+        } else {
+          throw Exception('Failed to compress image');
+        }
       } else {
         print('Photo selection cancelled by user');
       }
@@ -1444,7 +1790,7 @@ class _EditSalePageState extends State<EditSalePage> {
   }
 
   void _viewExistingPhoto() {
-    if (_customerPhotoBase64 == null || _customerPhotoBase64!.isEmpty) return;
+    if (_customerPhotosBase64.isEmpty) return;
     
     showDialog(
       context: context,
@@ -1508,7 +1854,7 @@ class _EditSalePageState extends State<EditSalePage> {
                 Flexible(
                   child: Container(
                     padding: EdgeInsets.all(20),
-                    child: _buildPhotoWidget(_customerPhotoBase64!),
+                    child: _buildPhotoWidget(_customerPhotosBase64[_currentPhotoIndex]),
                   ),
                 ),
               ],
@@ -1517,50 +1863,6 @@ class _EditSalePageState extends State<EditSalePage> {
         );
       },
     );
-  }
-
-  Widget _buildPhotoWidget(String photoPath) {
-    // Check if it's a base64 image or file path
-    if (photoPath.startsWith('data:image')) {
-      // Base64 image
-      try {
-        final bytes = Uri.parse(photoPath).data!.contentAsBytes();
-        return Image.memory(
-          bytes,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildPhotoErrorWidget();
-          },
-        );
-      } catch (e) {
-        return _buildPhotoErrorWidget();
-      }
-    } else {
-      // File path - assume it's on the server
-      final imageUrl = '${_inventoryController.baseUrl}/uploads/$photoPath';
-      return Image.network(
-        imageUrl,
-        fit: BoxFit.contain,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            height: 200,
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-                color: Color(0xFF4A7C3C),
-              ),
-            ),
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return _buildPhotoErrorWidget();
-        },
-      );
-    }
   }
 
   Widget _buildPhotoErrorWidget() {
@@ -1755,14 +2057,22 @@ class _EditSalePageState extends State<EditSalePage> {
             print('Updating existing item ${item.productName} (ID: ${item.id}) with quantity difference: $quantityDifference');
             
             // Only update if there's actually a change
-            if (quantityDifference != 0 || _customerPhotoBase64 != widget.sale.recipientPhoto) {
+            // Prepare photos for sending
+            String? photosToSend;
+            if (_customerPhotosBase64.isNotEmpty) {
+              photosToSend = _customerPhotosBase64.length == 1 
+                  ? _customerPhotosBase64.first 
+                  : jsonEncode(_customerPhotosBase64);
+            }
+            
+            if (quantityDifference != 0 || photosToSend != widget.sale.recipientPhoto) {
               // Update the transaction in database (with safe handling for missing IDs)
               await _inventoryController.updateTransactionSafe(
                 item.id!,
                 recipientName: _selectedCustomerName!,
                 recipientPhone: _selectedCustomerPhone ?? '',
                 quantity: item.quantity,
-                recipientPhoto: _customerPhotoBase64,
+                recipientPhoto: photosToSend,
               );
               print('Successfully updated transaction ${item.id}');
               
@@ -1800,7 +2110,11 @@ class _EditSalePageState extends State<EditSalePage> {
               quantity: item.quantity,
               recipientName: _selectedCustomerName!,
               recipientPhone: _selectedCustomerPhone ?? '',
-              recipientPhoto: _customerPhotoBase64,
+              recipientPhoto: _customerPhotosBase64.isNotEmpty 
+                  ? (_customerPhotosBase64.length == 1 
+                      ? _customerPhotosBase64.first 
+                      : jsonEncode(_customerPhotosBase64))
+                  : null,
               notes: 'Added during edit',
             );
             
