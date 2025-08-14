@@ -401,74 +401,63 @@ class _EditSalePageState extends State<EditSalePage> {
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade100, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.person, color: Colors.grey.shade600, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Customer',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-            ],
-          ),
-          
-          SizedBox(height: 16),
-          
-          // Search Field
-          TextField(
-            controller: _customerSearchController,
-            decoration: InputDecoration(
-              hintText: 'Search customers by name or phone...',
-              prefixIcon: Icon(Icons.search, color: Colors.grey),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.blue),
-              ),
+          Text(
+            'Customer',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
             ),
-            onChanged: _searchCustomers,
+          ),
+          
+          SizedBox(height: 12),
+          
+          // Search Field - Minimal
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200, width: 0.5),
+            ),
+            child: TextField(
+              controller: _customerSearchController,
+              decoration: InputDecoration(
+                hintText: 'Search customers...',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 18),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              onChanged: _searchCustomers,
+            ),
           ),
           
           SizedBox(height: 16),
           
-          // Selected Customer Card
+          // Selected Customer Card - Minimal
           if (_selectedCustomerName != null) ...[
             Container(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.green.shade50,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
+                border: Border.all(color: Colors.green.shade100, width: 0.5),
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.check,
-                      color: Colors.green.shade700,
-                      size: 20,
-                    ),
+                  Icon(
+                    Icons.check_circle,
+                    color: Colors.green.shade600,
+                    size: 16,
                   ),
                   
-                  SizedBox(width: 12),
+                  SizedBox(width: 8),
                   
                   Expanded(
                     child: Column(
@@ -477,40 +466,50 @@ class _EditSalePageState extends State<EditSalePage> {
                         Text(
                           _selectedCustomerName!,
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                            color: Colors.grey.shade800,
                           ),
                         ),
                         if (_selectedCustomerPhone != null)
                           Text(
                             _selectedCustomerPhone!,
                             style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 14,
+                              color: Colors.grey.shade500,
+                              fontSize: 13,
                             ),
                           ),
                       ],
                     ),
                   ),
                   
-                  // Edit and Delete buttons
-                  IconButton(
-                    onPressed: () {
-                      _showEditCustomerDialog();
-                    },
-                    icon: Icon(Icons.edit, color: Colors.blue),
-                  ),
-                  
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedCustomerName = null;
-                        _selectedCustomerPhone = null;
-                        _selectedCustomerAddress = null;
-                        _customerSearchController.clear();
-                      });
-                    },
-                    icon: Icon(Icons.close, color: Colors.red),
+                  // Edit and Delete buttons - Minimal
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: _showEditCustomerDialog,
+                        child: Container(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(Icons.edit, color: Colors.blue.shade600, size: 16),
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedCustomerName = null;
+                            _selectedCustomerPhone = null;
+                            _selectedCustomerAddress = null;
+                            _customerSearchController.clear();
+                          });
+                        },
+                        child: Container(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(Icons.close, color: Colors.red.shade600, size: 16),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -550,27 +549,27 @@ class _EditSalePageState extends State<EditSalePage> {
   Widget _buildGrandTotalSection() {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.shade200, width: 1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.shade100, width: 0.5),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.calculate_outlined,
-            color: Colors.green.shade700,
-            size: 20,
+            color: Colors.green.shade600,
+            size: 16,
           ),
-          SizedBox(width: 8),
+          SizedBox(width: 6),
           Text(
             'Total: ₹${_calculateTotal().toStringAsFixed(2)}',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.green.shade800,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.green.shade700,
             ),
           ),
         ],
@@ -584,36 +583,33 @@ class _EditSalePageState extends State<EditSalePage> {
       children: [
         Row(
           children: [
-            Icon(Icons.shopping_cart_outlined, color: Colors.grey.shade600, size: 20),
-            SizedBox(width: 8),
             Text(
               'Items',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey.shade800,
+                color: Colors.grey.shade700,
               ),
             ),
             Spacer(),
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey.shade300, width: 1),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 '${_saleItems.length}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade700,
+                  color: Colors.grey.shade600,
                 ),
               ),
             ),
           ],
         ),
-        SizedBox(height: 16),
+        SizedBox(height: 12),
         ..._saleItems.map((item) => Padding(
           padding: EdgeInsets.only(bottom: 12),
           child: _buildSaleItemCard(item),
@@ -625,12 +621,12 @@ class _EditSalePageState extends State<EditSalePage> {
   Widget _buildSaleItemCard(SaleItem item) {
     return Container(
       width: double.infinity,
-      margin: EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade100, width: 0.5),
       ),
       child: Column(
         children: [
@@ -638,15 +634,15 @@ class _EditSalePageState extends State<EditSalePage> {
             children: [
               // Simple status indicator
               Container(
-                width: 4,
-                height: 40,
+                width: 3,
+                height: 32,
                 decoration: BoxDecoration(
                   color: Colors.blue.shade400,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(1.5),
                 ),
               ),
               
-              SizedBox(width: 12),
+              SizedBox(width: 10),
               
               Expanded(
                 child: Column(
@@ -655,28 +651,28 @@ class _EditSalePageState extends State<EditSalePage> {
                     Text(
                       item.productName,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
                         color: Colors.grey.shade800,
                       ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
+                    SizedBox(height: 2),
                     Text(
                       item.barcode,
                       style: TextStyle(
                         color: Colors.grey.shade500,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
+                    SizedBox(height: 2),
                     Text(
                       '₹${item.mrp.toStringAsFixed(2)}',
                       style: TextStyle(
-                        color: Colors.green.shade700,
-                        fontSize: 14,
+                        color: Colors.green.shade600,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -684,17 +680,17 @@ class _EditSalePageState extends State<EditSalePage> {
                 ),
               ),
               
-              // Quantity display
+              // Quantity display - Minimal
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${item.quantity}',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey.shade700,
                   ),
@@ -703,73 +699,73 @@ class _EditSalePageState extends State<EditSalePage> {
             ],
           ),
           
-          SizedBox(height: 16),
+          SizedBox(height: 12),
           
-          // Quantity Controls and Delete Button
+          // Quantity Controls and Delete Button - Minimal
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Quantity Controls
+              // Quantity Controls - Compact
               Row(
                 children: [
                   // Decrease button
                   GestureDetector(
                     onTap: item.quantity > 1 ? () => _updateItemQuantity(item, item.quantity - 1) : null,
                     child: Container(
-                      width: 32,
-                      height: 32,
+                      width: 28,
+                      height: 28,
                       decoration: BoxDecoration(
-                        color: item.quantity > 1 ? Colors.red.shade50 : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
+                        color: item.quantity > 1 ? Colors.red.shade50 : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: item.quantity > 1 ? Colors.red.shade200 : Colors.grey.shade300,
-                          width: 1,
+                          color: item.quantity > 1 ? Colors.red.shade100 : Colors.grey.shade200,
+                          width: 0.5,
                         ),
                       ),
                       child: Icon(
                         Icons.remove,
-                        size: 18,
+                        size: 14,
                         color: item.quantity > 1 ? Colors.red.shade600 : Colors.grey.shade400,
                       ),
                     ),
                   ),
                   
-                  SizedBox(width: 16),
+                  SizedBox(width: 12),
                   
                   // Quantity display
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200, width: 1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.blue.shade100, width: 0.5),
                     ),
                     child: Text(
                       '${item.quantity}',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                         color: Colors.blue.shade700,
                       ),
                     ),
                   ),
                   
-                  SizedBox(width: 16),
+                  SizedBox(width: 12),
                   
                   // Increase button
                   GestureDetector(
                     onTap: () => _updateItemQuantity(item, item.quantity + 1),
                     child: Container(
-                      width: 32,
-                      height: 32,
+                      width: 28,
+                      height: 28,
                       decoration: BoxDecoration(
                         color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.shade200, width: 1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.green.shade100, width: 0.5),
                       ),
                       child: Icon(
                         Icons.add,
-                        size: 18,
+                        size: 14,
                         color: Colors.green.shade600,
                       ),
                     ),
@@ -777,19 +773,19 @@ class _EditSalePageState extends State<EditSalePage> {
                 ],
               ),
               
-              // Delete Item Button
+              // Delete Item Button - Minimal
               GestureDetector(
                 onTap: () => _showDeleteItemDialog(item),
                 child: Container(
-                  padding: EdgeInsets.all(8),
+                  padding: EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200, width: 1),
+                                            color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.red.shade100, width: 0.5),
                   ),
                   child: Icon(
                     Icons.delete_outline,
-                    size: 20,
+                    size: 16,
                     color: Colors.red.shade600,
                   ),
                 ),
@@ -799,23 +795,23 @@ class _EditSalePageState extends State<EditSalePage> {
           
           SizedBox(height: 8),
           
-          // Item total
+          // Item total - Minimal
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
                 'Total: ',
                 style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
                 ),
               ),
               Text(
                 '₹${(item.quantity * item.mrp).toStringAsFixed(2)}',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.green.shade600,
                 ),
               ),
             ],
@@ -842,38 +838,30 @@ class _EditSalePageState extends State<EditSalePage> {
         children: [
           Row(
             children: [
-              Icon(Icons.camera_alt_outlined, color: Colors.grey.shade600, size: 20),
-              SizedBox(width: 8),
               Text(
                 'Photos (Optional)',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade800,
+                  color: Colors.grey.shade700,
                 ),
               ),
               if (_hasExistingPhoto) ...[
                 Spacer(),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade100, width: 0.5),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.photo_camera, color: Colors.green.shade700, size: 12),
-                      SizedBox(width: 4),
-                      Text(
-                        '${_customerPhotosBase64.length} Photo${_customerPhotosBase64.length > 1 ? 's' : ''}',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '${_customerPhotosBase64.length}',
+                    style: TextStyle(
+                      color: Colors.green.shade600,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -1789,110 +1777,7 @@ class _EditSalePageState extends State<EditSalePage> {
     }
   }
 
-  void _viewExistingPhoto() {
-    if (_customerPhotosBase64.isEmpty) return;
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-              maxWidth: MediaQuery.of(context).size.width * 0.9,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF4A7C3C),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.photo_camera, color: Colors.white, size: 24),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Customer Photo',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              _selectedCustomerName ?? 'Unknown Customer',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(Icons.close, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Photo
-                Flexible(
-                  child: Container(
-                    padding: EdgeInsets.all(20),
-                    child: _buildPhotoWidget(_customerPhotosBase64[_currentPhotoIndex]),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPhotoErrorWidget() {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.broken_image,
-            size: 48,
-            color: Colors.grey.shade400,
-          ),
-          SizedBox(height: 12),
-          Text(
-            'Failed to load image',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Removed unused methods for cleaner code
 
 
 

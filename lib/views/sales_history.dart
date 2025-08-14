@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../controllers/inventoryController.dart';
@@ -485,182 +484,136 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
 
     showDialog(
       context: context,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.all(24),
           child: Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-              maxWidth: MediaQuery.of(context).size.width * 0.9,
+              maxHeight: MediaQuery.of(context).size.height * 0.75,
+              maxWidth: MediaQuery.of(context).size.width * 0.85,
             ),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 5,
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
+                // Minimal header
                 Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF4A7C3C), Color(0xFF6B9B4F)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
+                  padding: EdgeInsets.fromLTRB(16, 16, 12, 8),
                   child: Row(
                     children: [
-                      Icon(Icons.photo, color: Colors.white, size: 24),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              photos.length > 1 ? 'Customer Photos' : 'Customer Photo',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${sale.recipientName ?? 'Unknown Customer'}${photos.length > 1 ? ' (${photos.length} photos)' : ''}',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        '${sale.recipientName ?? 'Customer'}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade800,
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              // Show fullscreen photo
-                              _viewPhotoFullscreen(context, sale);
-                            },
-                            icon: Icon(Icons.fullscreen, color: Colors.white),
-                            tooltip: 'View fullscreen',
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${photos.length}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
                           ),
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: Icon(Icons.close, color: Colors.white),
-                            tooltip: 'Close',
-                          ),
-                        ],
+                        ),
+                      ),
+                      Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close, size: 18),
+                        color: Colors.grey.shade600,
+                        padding: EdgeInsets.all(6),
+                        constraints: BoxConstraints(minWidth: 32, minHeight: 32),
                       ),
                     ],
                   ),
                 ),
                 
-                // Photo Display
+                // Photo display - clean and simple
                 Flexible(
                   child: Container(
-                    padding: EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Customer Info
-                        Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.person, color: Colors.grey.shade600),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      sale.recipientName ?? 'Unknown Customer',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    if (sale.recipientPhone != null && sale.recipientPhone!.isNotEmpty)
-                                      Text(
-                                        sale.recipientPhone!,
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    Text(
-                                      _formatDate(sale.transactionDate ?? ''),
-                                      style: TextStyle(
-                                        color: Colors.grey.shade500,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        
-                        SizedBox(height: 20),
-                        
-                        // Photo
-                        Flexible(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                                                          child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: _buildEnhancedPhotoCarousel(photos, sale),
-                              ),
-                          ),
-                        ),
-                        
-                        SizedBox(height: 20),
-                        
-                        // Action Button
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.pop(context),
-                            icon: Icon(Icons.check),
-                            label: Text('Close'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF4A7C3C),
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _buildSimplePhotoCarousel(photos),
                     ),
+                  ),
+                ),
+                
+                // Minimal action buttons
+                Container(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditSalePage(sale: sale),
+                              ),
+                            );
+                            
+                            if (result == true) {
+                              await _loadSalesHistory();
+                              final updatedSale = _filteredSales.firstWhere(
+                                (s) => s.recipientName == sale.recipientName && 
+                                       s.recipientPhone == sale.recipientPhone,
+                                orElse: () => sale,
+                              );
+                              if (updatedSale.recipientPhoto != null && updatedSale.recipientPhoto!.isNotEmpty) {
+                                _viewCustomerPhoto(updatedSale);
+                              }
+                            }
+                          },
+                          icon: Icon(Icons.edit, size: 16),
+                          label: Text('Edit'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.blue.shade600,
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                      
+                      SizedBox(width: 8),
+                      
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _viewPhotoFullscreen(context, sale);
+                          },
+                          icon: Icon(Icons.fullscreen, size: 16),
+                          label: Text('Fullscreen'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey.shade600,
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -670,8 +623,6 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
       },
     );
   }
-
-
 
   Widget _buildSinglePhoto(String photoPath) {
     print('=== _buildSinglePhoto called ===');
@@ -708,41 +659,7 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
         );
       } catch (e) {
         print('Exception parsing base64 image: $e');
-        print('PhotoPath starts with: ${photoPath.substring(0, math.min(100, photoPath.length))}');
-        
-        // Return diagnostic info instead of error widget for debugging
-        return Container(
-          height: 200,
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.bug_report, size: 48, color: Colors.orange),
-              SizedBox(height: 8),
-              Text(
-                'Debug Info',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Error: $e',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Path starts: ${photoPath.substring(0, math.min(50, photoPath.length))}...',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 10, fontFamily: 'monospace'),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Length: ${photoPath.length}',
-                style: TextStyle(fontSize: 10),
-              ),
-            ],
-          ),
-        );
+        return _buildPhotoErrorWidget();
       }
     } else {
       // File path - assume it's on the server
@@ -783,246 +700,55 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
         print('Exception loading network image: $e');
         return _buildPhotoErrorWidget();
       }
-          }
     }
-
-  Widget _buildEnhancedPhotoCarousel(List<String> photos, Transaction sale) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        int currentIndex = 0;
-        
-        return Column(
-          children: [
-            // Photo navigation and controls
-            if (photos.length > 1) ...[
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    // Previous button
-                    IconButton(
-                      onPressed: currentIndex > 0 ? () {
-                        setState(() {
-                          currentIndex--;
-                        });
-                      } : null,
-                      icon: Icon(Icons.arrow_back_ios),
-                      color: currentIndex > 0 ? Color(0xFF4A7C3C) : Colors.grey.shade400,
-                      tooltip: 'Previous photo',
-                    ),
-                    
-                    Expanded(
-                      child: Column(
-                        children: [
-                          // Photo counter
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF4A7C3C), Color(0xFF6B9B4F)],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Photo ${currentIndex + 1} of ${photos.length}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          
-                          SizedBox(height: 8),
-                          
-                          // Photo indicators
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(photos.length, (index) {
-                              return Container(
-                                margin: EdgeInsets.symmetric(horizontal: 3),
-                                width: index == currentIndex ? 24 : 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: index == currentIndex 
-                                      ? Color(0xFF4A7C3C) 
-                                      : Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              );
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Next button
-                    IconButton(
-                      onPressed: currentIndex < photos.length - 1 ? () {
-                        setState(() {
-                          currentIndex++;
-                        });
-                      } : null,
-                      icon: Icon(Icons.arrow_forward_ios),
-                      color: currentIndex < photos.length - 1 ? Color(0xFF4A7C3C) : Colors.grey.shade400,
-                      tooltip: 'Next photo',
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16),
-            ],
-            
-            // Current photo with swipe gesture
-            Expanded(
-              child: GestureDetector(
-                onHorizontalDragEnd: photos.length > 1 ? (DragEndDetails details) {
-                  if (details.primaryVelocity != null) {
-                    if (details.primaryVelocity! > 0 && currentIndex > 0) {
-                      // Swiped right - previous photo
-                      setState(() {
-                        currentIndex--;
-                      });
-                    } else if (details.primaryVelocity! < 0 && currentIndex < photos.length - 1) {
-                      // Swiped left - next photo
-                      setState(() {
-                        currentIndex++;
-                      });
-                    }
-                  }
-                } : null,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: _buildSinglePhoto(photos[currentIndex]),
-                  ),
-                ),
-              ),
-            ),
-            
-            SizedBox(height: 16),
-            
-            // Action buttons
-            Row(
-              children: [
-                // Edit button
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _editSale(sale);
-                    },
-                    icon: Icon(Icons.edit, color: Color(0xFF4A7C3C)),
-                    label: Text('Edit Sale', style: TextStyle(color: Color(0xFF4A7C3C))),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Color(0xFF4A7C3C)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                
-                SizedBox(width: 12),
-                
-                // Close button
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, color: Colors.white),
-                    label: Text('Close', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF4A7C3C),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
   }
-  
-    Widget _buildMultiplePhotosWidget(List<String> photos) {
+
+  Widget _buildSimplePhotoCarousel(List<String> photos) {
     return StatefulBuilder(
       builder: (context, setState) {
         int currentIndex = 0;
         
         return Column(
           children: [
-            // Photo counter and navigation
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
+            // Minimal photo counter for multiple photos
+            if (photos.length > 1)
+              Container(
+                margin: EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${currentIndex + 1} of ${photos.length}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Previous button
-                  IconButton(
-                    onPressed: currentIndex > 0 ? () {
-                      setState(() {
-                        currentIndex--;
-                      });
-                    } : null,
-                    icon: Icon(Icons.chevron_left),
-                    color: currentIndex > 0 ? Color(0xFF4A7C3C) : Colors.grey,
-                  ),
-                  
-                  // Photo counter
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF4A7C3C),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${currentIndex + 1} / ${photos.length}',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  
-                  // Next button
-                  IconButton(
-                    onPressed: currentIndex < photos.length - 1 ? () {
-                      setState(() {
-                        currentIndex++;
-                      });
-                    } : null,
-                    icon: Icon(Icons.chevron_right),
-                    color: currentIndex < photos.length - 1 ? Color(0xFF4A7C3C) : Colors.grey,
-                  ),
-                ],
-              ),
-            ),
             
-            SizedBox(height: 12),
-            
-            // Current photo
+            // Photo with PageView for smooth swiping
             Expanded(
-              child: _buildSinglePhoto(photos[currentIndex]),
+              child: PageView.builder(
+                controller: PageController(initialPage: currentIndex),
+                itemCount: photos.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    currentIndex = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: EdgeInsets.symmetric(horizontal: 2),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _buildSinglePhoto(photos[index]),
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         );
@@ -1054,127 +780,9 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
               fontSize: 16,
             ),
           ),
-          Text(
-            'The photo might be corrupted or unavailable',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-            ),
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
     );
-  }
-
-  void _deleteSale(Transaction sale) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Sale'),
-        content: Text('Are you sure you want to delete this sale? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _performDeleteSale(sale);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _performDeleteSale(Transaction sale) async {
-    if (!mounted) return; // Exit early if widget is disposed
-    
-    ScaffoldMessengerState? scaffoldMessenger;
-    try {
-      scaffoldMessenger = ScaffoldMessenger.of(context);
-    } catch (e) {
-      print('Cannot access ScaffoldMessenger, widget may be disposed');
-      return;
-    }
-    
-    try {
-      // Show loading indicator
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              SizedBox(width: 16),
-              Text('Deleting sale...'),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 30),
-        ),
-      );
-
-      // Perform actual deletion with timeout
-      if (sale.id != null) {
-        await _inventoryController.deleteTransaction(sale.id!).timeout(
-          Duration(seconds: 30),
-          onTimeout: () {
-            throw Exception('Delete operation timed out. Please check your connection and try again.');
-          },
-        );
-      } else {
-        throw Exception('Invalid transaction ID');
-      }
-      
-      // Only proceed if widget is still mounted
-      if (!mounted) return;
-      
-      // Hide loading snackbar and show success message
-      try {
-        scaffoldMessenger.hideCurrentSnackBar();
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Sale deleted successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } catch (e) {
-        print('Could not show success message, widget may be disposed');
-      }
-      
-      // Refresh the list only if widget is still mounted
-      if (mounted) {
-        _loadSalesHistory();
-      }
-    } catch (e) {
-      // Only show error message if widget is still mounted
-      if (mounted) {
-        try {
-          scaffoldMessenger.hideCurrentSnackBar();
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text('Error deleting sale: ${e.toString()}'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        } catch (uiError) {
-          print('Could not show error message, widget may be disposed: $uiError');
-        }
-      }
-    }
   }
 
   void _viewPhotoFullscreen(BuildContext context, Transaction sale) {
@@ -1216,94 +824,37 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
           children: [
             // Photo in center
             Center(
-              child: InteractiveViewer(
-                panEnabled: true,
-                scaleEnabled: true,
-                minScale: 0.5,
-                maxScale: 3.0,
-                child: GestureDetector(
-                  onHorizontalDragEnd: photos.length > 1 ? (DragEndDetails details) {
-                    if (details.primaryVelocity != null) {
-                      if (details.primaryVelocity! > 0 && currentIndex > 0) {
-                        // Swiped right - previous photo
-                        setState(() {
-                          currentIndex--;
-                        });
-                      } else if (details.primaryVelocity! < 0 && currentIndex < photos.length - 1) {
-                        // Swiped left - next photo
-                        setState(() {
-                          currentIndex++;
-                        });
-                      }
-                    }
-                  } : null,
-                  child: _buildFullscreenSinglePhoto(photos[currentIndex]),
-                ),
+              child: PageView.builder(
+                controller: PageController(initialPage: currentIndex),
+                itemCount: photos.length,
+                onPageChanged: (index) {
+                  setState(() {
+                    currentIndex = index;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  return InteractiveViewer(
+                    panEnabled: true,
+                    scaleEnabled: true,
+                    minScale: 0.5,
+                    maxScale: 3.0,
+                    child: Center(
+                      child: _buildFullscreenSinglePhoto(photos[index]),
+                    ),
+                  );
+                },
               ),
             ),
             
-            // Navigation arrows for multiple photos
-            if (photos.length > 1) ...[
-              // Previous button
-              if (currentIndex > 0)
-                Positioned(
-                  left: 20,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        onPressed: () {
-                          setState(() {
-                            currentIndex--;
-                          });
-                        },
-                        icon: Icon(Icons.arrow_back_ios, color: Colors.white, size: 24),
-                        iconSize: 48,
-                      ),
-                    ),
-                  ),
-                ),
-              
-              // Next button
-              if (currentIndex < photos.length - 1)
-                Positioned(
-                  right: 20,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        onPressed: () {
-                          setState(() {
-                            currentIndex++;
-                          });
-                        },
-                        icon: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 24),
-                        iconSize: 48,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-            
-            // Photo counter for multiple photos
+            // Minimalistic photo counter only
             if (photos.length > 1)
               Positioned(
-                top: 60,
+                top: 50,
                 left: 0,
                 right: 0,
                 child: Center(
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(20),
@@ -1312,102 +863,53 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                       '${currentIndex + 1} of ${photos.length}',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                 ),
               ),
-            // Header with customer info and close button
+
+            // Minimalistic close button
             Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
+              top: MediaQuery.of(context).padding.top + 10,
+              right: 15,
               child: Container(
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 10,
-                  left: 20,
-                  right: 20,
-                  bottom: 15,
-                ),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.8),
-                      Colors.transparent,
-                    ],
-                  ),
+                  color: Colors.black.withOpacity(0.6),
+                  shape: BoxShape.circle,
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.photo, color: Colors.white, size: 24),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Customer Photo',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '${sale.recipientName ?? 'Unknown Customer'}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.close, color: Colors.white, size: 24),
+                  iconSize: 40,
+                ),
+              ),
+            ),
+            // Minimalistic swipe hint for multiple photos
+            if (photos.length > 1)
+              Positioned(
+                bottom: MediaQuery.of(context).padding.bottom + 20,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Text(
+                      'Swipe to navigate • Pinch to zoom',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 12,
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: Colors.white, size: 28),
-                      tooltip: 'Close',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Instructions at bottom
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: EdgeInsets.only(
-                  left: 20,
-                  right: 20,
-                  bottom: MediaQuery.of(context).padding.bottom + 15,
-                  top: 15,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.8),
-                      Colors.transparent,
-                    ],
                   ),
                 ),
-                child: Text(
-                  'Pinch to zoom • Drag to pan • Tap outside to close',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
               ),
-            ),
           ],
         );
       },
@@ -1493,5 +995,107 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
         ],
       ),
     );
+  }
+
+  void _deleteSale(Transaction sale) async {
+    // Show confirmation dialog first
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Sale'),
+        content: Text('Are you sure you want to delete this sale? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) {
+      return;
+    }
+    
+    try {
+      // Show loading indicator
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Deleting sale...'),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 30),
+        ),
+      );
+
+      // Perform actual deletion with timeout
+      if (sale.id != null) {
+        await _inventoryController.deleteTransaction(sale.id!).timeout(
+          Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('Delete operation timed out. Please check your connection and try again.');
+          },
+        );
+      } else {
+        throw Exception('Invalid transaction ID');
+      }
+      
+      // Only proceed if widget is still mounted
+      if (!mounted) return;
+      
+      // Hide loading snackbar and show success message
+      try {
+        scaffoldMessenger.hideCurrentSnackBar();
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Sale deleted successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } catch (e) {
+        print('Could not show success message, widget may be disposed');
+      }
+      
+      // Refresh the list only if widget is still mounted
+      if (mounted) {
+        _loadSalesHistory();
+      }
+    } catch (e) {
+      // Only show error message if widget is still mounted
+      if (mounted) {
+        try {
+          scaffoldMessenger.hideCurrentSnackBar();
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('Error deleting sale: ${e.toString()}'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        } catch (uiError) {
+          print('Could not show error message, widget may be disposed: $uiError');
+        }
+      }
+    }
   }
 }
