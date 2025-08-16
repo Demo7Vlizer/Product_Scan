@@ -289,17 +289,31 @@ def add_product():
     # Handle image upload if provided
     image_path = None
     if 'image_path' in data and data['image_path']:
+        print(f"🔧 DEBUG: Received image data length: {len(data['image_path'])} characters")
+        print(f"🔧 DEBUG: Image data starts with: {data['image_path'][:50]}...")
+        
         # Process and save compressed image to product_photos folder
         filename = f"{data['barcode']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        
+        # Temporarily disable compression to test
         success, full_path, error_msg = process_and_save_image(
             data['image_path'], 
             filename, 
             app.config['PRODUCT_PHOTOS_FOLDER'],
-            compress=True
+            compress=False  # Temporarily disabled for debugging
         )
+        
+        print(f"🔧 DEBUG: Save result - Success: {success}, Path: {full_path}, Error: {error_msg}")
         
         if not success:
             return jsonify({'error': f'Failed to process product image: {error_msg}'}), 400
+        
+        # Check file size after saving
+        if os.path.exists(full_path):
+            file_size = os.path.getsize(full_path)
+            print(f"🔧 DEBUG: Saved file size: {file_size} bytes")
+            if file_size < 100:
+                print(f"🔧 DEBUG: WARNING - File too small, likely corrupted!")
         
         # Save relative path in database (product_photos/filename)
         image_path = f"product_photos/{filename}"
@@ -2212,47 +2226,110 @@ def process_and_save_image(base64_data, filename, folder_path, compress=True):
         Tuple: (success: bool, file_path: str, error_message: str)
     """
     try:
+        print(f"🔧 DEBUG: Starting image processing for {filename}")
+        print(f"🔧 DEBUG: Input data length: {len(base64_data) if base64_data else 0} characters")
+        
+        if not base64_data or len(base64_data) < 100:
+            error_msg = f"Invalid or too short base64 data: {len(base64_data) if base64_data else 0} characters"
+            print(f"❌ {error_msg}")
+            return False, "", error_msg
+        
         # Remove data URL prefix if present
+        original_data = base64_data
         if ',' in base64_data:
-            base64_data = base64_data.split(',')[1]
+            prefix, base64_data = base64_data.split(',', 1)
+            print(f"🔧 DEBUG: Removed data URL prefix: {prefix}")
         
-        # Decode base64
-        image_bytes = base64.b64decode(base64_data)
-        original_size_kb = len(image_bytes) / 1024
+        print(f"🔧 DEBUG: Base64 data length after cleanup: {len(base64_data)} characters")
         
-        # Smart compression: Check if image is already well-compressed from Flutter
-        should_compress = compress and COMPRESSION_AVAILABLE
+        # Fix base64 padding - SIMPLE APPROACH
+        base64_data = base64_data.strip()  # Remove any whitespace
+        # Add padding to make it a multiple of 4
+        while len(base64_data) % 4 != 0:
+            base64_data += '='
         
-        if should_compress:
-            # If image is already small (likely pre-compressed by Flutter), be gentle
-            if original_size_kb <= 200:  # Already well compressed
-                print(f"Image already well-compressed ({original_size_kb:.1f}KB), applying minimal compression")
-                # Use lighter compression settings for pre-compressed images
-                image_bytes = compress_image(image_bytes, max_size_kb=150, quality=90, max_width=600, max_height=600)
-            elif original_size_kb <= 500:  # Moderately compressed
-                print(f"Image moderately compressed ({original_size_kb:.1f}KB), applying standard compression")
-                image_bytes = compress_image(image_bytes, max_size_kb=250, quality=80, max_width=700, max_height=700)
-            else:  # Large image, needs aggressive compression
-                print(f"Large image ({original_size_kb:.1f}KB), applying aggressive compression")
-                image_bytes = compress_image(image_bytes, max_size_kb=300, quality=75, max_width=800, max_height=800)
-            
-            compressed_size_kb = len(image_bytes) / 1024
-            print(f"Final server compression: {original_size_kb:.1f}KB → {compressed_size_kb:.1f}KB")
+        print(f"🔧 DEBUG: Fixed base64 length: {len(base64_data)} characters")
+        
+        # Decode full base64
+        try:
+            image_bytes = base64.b64decode(base64_data)
+            original_size_kb = len(image_bytes) / 1024
+            print(f"🔧 DEBUG: Decoded image: {len(image_bytes)} bytes ({original_size_kb:.1f}KB)")
+        except Exception as decode_error:
+            error_msg = f"Base64 decode failed: {str(decode_error)}"
+            print(f"❌ {error_msg}")
+            return False, "", error_msg
+        
+        if len(image_bytes) < 1000:  # Less than 1KB is suspicious
+            error_msg = f"Decoded image too small: {len(image_bytes)} bytes"
+            print(f"❌ {error_msg}")
+            return False, "", error_msg
+        
+        # Apply aggressive compression to save space
+        if compress and COMPRESSION_AVAILABLE:
+            print(f"🔧 DEBUG: Applying aggressive compression...")
+            try:
+                # Test if it's a valid image first
+                test_img = Image.open(io.BytesIO(image_bytes))
+                test_img.verify()  # This will raise an exception if not a valid image
+                print(f"🔧 DEBUG: Image format validation passed: {test_img.format}")
+                
+                # Re-open for processing (verify() closes the image)
+                image_bytes = base64.b64decode(base64_data)
+                
+                # Always compress aggressively to save space
+                print(f"Compressing image ({original_size_kb:.1f}KB) to save space...")
+                image_bytes = compress_image(
+                    image_bytes, 
+                    max_size_kb=50,      # Very small target size
+                    quality=60,          # Lower quality for smaller files
+                    max_width=400,       # Smaller dimensions
+                    max_height=400
+                )
+                
+                compressed_size_kb = len(image_bytes) / 1024
+                print(f"✅ Compressed: {original_size_kb:.1f}KB → {compressed_size_kb:.1f}KB (saved {original_size_kb - compressed_size_kb:.1f}KB)")
+            except Exception as img_error:
+                print(f"⚠️ WARNING: Image compression failed: {str(img_error)}")
+                print(f"🔧 DEBUG: Saving original image")
+                # Use original image_bytes if compression fails
+                image_bytes = base64.b64decode(base64_data)
         elif compress and not COMPRESSION_AVAILABLE:
             print(f"Compression requested but Pillow not available. Saving original image: {original_size_kb:.1f}KB")
         else:
             print(f"Compression disabled. Saving original image: {original_size_kb:.1f}KB")
         
+        # Final validation before saving
+        if len(image_bytes) < 100:
+            error_msg = f"Final image data too small: {len(image_bytes)} bytes"
+            print(f"❌ {error_msg}")
+            return False, "", error_msg
+        
         # Save to file
         full_path = os.path.join(folder_path, filename)
+        print(f"🔧 DEBUG: Saving to: {full_path}")
+        
         with open(full_path, 'wb') as f:
             f.write(image_bytes)
+        
+        # Verify file was saved correctly
+        if os.path.exists(full_path):
+            file_size = os.path.getsize(full_path)
+            print(f"🔧 DEBUG: File saved successfully: {file_size} bytes")
+            if file_size != len(image_bytes):
+                print(f"⚠️ WARNING: File size mismatch! Expected: {len(image_bytes)}, Got: {file_size}")
+        else:
+            error_msg = "File was not created"
+            print(f"❌ {error_msg}")
+            return False, "", error_msg
         
         return True, full_path, ""
         
     except Exception as e:
         error_msg = f"Error processing image: {str(e)}"
-        print(error_msg)
+        print(f"❌ {error_msg}")
+        import traceback
+        print(f"🔧 DEBUG: Full traceback: {traceback.format_exc()}")
         return False, "", error_msg
 
 def is_photo_used_by_other_transactions(photo_path, excluding_transaction_id=None):

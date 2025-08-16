@@ -318,12 +318,40 @@ class _ProductListPageState extends State<ProductListPage> {
                                             height: 40,
                                             fit: BoxFit.cover,
                                             errorBuilder: (context, error, stackTrace) {
-                                              print('Error loading product image: ${RequestClient.baseUrl}/uploads/${product.imagePath}');
-                                              print('Error details: $error');
+                                              final imageUrl = '${RequestClient.baseUrl}/uploads/${product.imagePath}';
+                                              print('❌ Error loading product image:');
+                                              print('   URL: $imageUrl');
+                                              print('   Base URL: ${RequestClient.baseUrl}');
+                                              print('   Image Path: ${product.imagePath}');
+                                              print('   Error: $error');
+                                              
+                                              // Test the image URL in the background
+                                              InventoryController().testImageUrl(product.imagePath!);
+                                              
                                               return Icon(
                                                 Icons.inventory_2_outlined,
                                                 color: Colors.grey.shade500,
                                                 size: 20,
+                                              );
+                                            },
+                                            loadingBuilder: (context, child, loadingProgress) {
+                                              if (loadingProgress == null) {
+                                                print('✅ Product image loaded successfully: ${RequestClient.baseUrl}/uploads/${product.imagePath}');
+                                                return child;
+                                              }
+                                              return Container(
+                                                width: 40,
+                                                height: 40,
+                                                child: Center(
+                                                  child: SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.grey.shade400,
+                                                    ),
+                                                  ),
+                                                ),
                                               );
                                             },
                                           ),

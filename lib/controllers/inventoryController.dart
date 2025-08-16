@@ -13,11 +13,36 @@ class InventoryController {
   // Check server connectivity
   Future<bool> checkServerConnection() async {
     try {
+      print('🔗 Testing server connection to: $_baseUrl');
       var response = await http.get(
         Uri.parse('$_baseUrl/api/server-status'),
       ).timeout(Duration(seconds: 5));
+      print('🔗 Server response status: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
+      print('❌ Server connection error: $e');
+      return false;
+    }
+  }
+
+  // Test image URL accessibility
+  Future<bool> testImageUrl(String imagePath) async {
+    try {
+      final imageUrl = '$_baseUrl/uploads/$imagePath';
+      print('🖼️ Testing image URL: $imageUrl');
+      
+      var response = await http.head(Uri.parse(imageUrl));
+      print('🖼️ Image URL response: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Image URL accessible');
+        return true;
+      } else {
+        print('❌ Image URL failed with status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Image URL test error: $e');
       return false;
     }
   }

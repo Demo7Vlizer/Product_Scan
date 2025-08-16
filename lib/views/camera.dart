@@ -17,7 +17,7 @@ class CameraPage extends StatefulWidget {
   _CameraPageState createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
+class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   String _scannedValue = "";
   bool _isLoading = false;
   Product? _scannedProduct;
@@ -25,21 +25,136 @@ class _CameraPageState extends State<CameraPage> {
   bool _hasPermission = false;
   bool _canScan = true;
   DateTime? _lastScanTime;
+  MobileScannerController? _scannerController;
 
   @override
   void initState() {
     super.initState();
-    _checkCameraPermission();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeScanner();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _scannerController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (_scannerController == null) return;
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        if (_hasPermission && !_isLoading) {
+          try {
+            _scannerController?.start();
+            print('📷 Camera resumed');
+          } catch (e) {
+            print('❌ Error starting camera: $e');
+          }
+        }
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        try {
+          _scannerController?.stop();
+          print('📷 Camera paused');
+        } catch (e) {
+          print('❌ Error stopping camera: $e');
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _initializeScanner() async {
+    try {
+      print('🔧 Initializing scanner...');
+      
+      _scannerController = MobileScannerController(
+        detectionSpeed: DetectionSpeed.noDuplicates,
+        formats: [BarcodeFormat.all],
+        returnImage: false,
+      );
+      
+      // Check camera permission
+      await _checkCameraPermission();
+      
+      print('✅ Scanner initialized successfully');
+    } catch (e) {
+      print('❌ Error initializing scanner: $e');
+      if (mounted) {
+        setState(() {
+          _hasPermission = false;
+        });
+      }
+    }
   }
 
   Future<void> _checkCameraPermission() async {
-    // For now, assume permission is granted
-    // In a real app, you'd use permission_handler package
-    if (mounted) {
-      setState(() {
-        _hasPermission = true;
-      });
+    try {
+      print('🔍 Checking camera permission...');
+      
+      // Try to start the scanner to check permission
+      await _scannerController?.start();
+      
+      if (mounted) {
+        setState(() {
+          _hasPermission = true;
+        });
+        print('✅ Camera permission granted');
+      }
+    } catch (e) {
+      print('❌ Camera permission denied or error: $e');
+      if (mounted) {
+        setState(() {
+          _hasPermission = false;
+        });
+        
+        // Show permission dialog
+        _showPermissionDialog();
+      }
     }
+  }
+
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.camera_alt, color: Colors.orange),
+            SizedBox(width: 12),
+            Text('Camera Permission'),
+          ],
+        ),
+        content: Text(
+          'This app needs camera permission to scan barcodes. Please grant camera permission in your device settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Go back to previous screen
+            },
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _checkCameraPermission(); // Try again
+            },
+            child: Text('Retry'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -108,7 +223,8 @@ class _CameraPageState extends State<CameraPage> {
                         ),
                       )
                     else
-                                              MobileScanner(
+                      MobileScanner(
+                        controller: _scannerController,
                         onDetect: (barcodeCapture) {
                           // Prevent scanning if we can't scan or are already processing
                           if (!_canScan || _isLoading) {
@@ -174,26 +290,91 @@ class _CameraPageState extends State<CameraPage> {
                           print('=== END DEBUG ===');
                         },
                       ),
-                    // Scanner overlay
+                    // Scanner overlay with status
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white, width: 2),
                           borderRadius: BorderRadius.circular(13),
                         ),
-                        child: Center(
-                          child: Container(
-                            width: MediaQuery.of(context).size.width * 0.6,
-                            height: MediaQuery.of(context).size.width * 0.6,
-                            constraints: BoxConstraints(
-                              maxWidth: 250,
-                              maxHeight: 250,
+                        child: Stack(
+                          children: [
+                            // Scanning frame
+                            Center(
+                              child: Container(
+                                width: MediaQuery.of(context).size.width * 0.6,
+                                height: MediaQuery.of(context).size.width * 0.6,
+                                constraints: BoxConstraints(
+                                  maxWidth: 250,
+                                  maxHeight: 250,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: _isLoading 
+                                        ? Colors.orange 
+                                        : _canScan 
+                                            ? Colors.green 
+                                            : Colors.red, 
+                                    width: 3
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: _isLoading
+                                    ? Center(
+                                        child: CircularProgressIndicator(
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                                        ),
+                                      )
+                                    : null,
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.blue, width: 3),
-                              borderRadius: BorderRadius.circular(8),
+                            
+                            // Status indicator
+                            Positioned(
+                              top: 20,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.7),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _isLoading 
+                                            ? Icons.hourglass_empty
+                                            : _canScan 
+                                                ? Icons.qr_code_scanner 
+                                                : Icons.pause_circle_outline,
+                                        color: _isLoading 
+                                            ? Colors.orange 
+                                            : _canScan 
+                                                ? Colors.green 
+                                                : Colors.red,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        _isLoading 
+                                            ? 'Processing...' 
+                                            : _canScan 
+                                                ? 'Ready to scan' 
+                                                : 'Scanning paused',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ),
@@ -373,72 +554,37 @@ class _CameraPageState extends State<CameraPage> {
 
                 SizedBox(height: 20),
 
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        if (mounted) {
-                          setState(() {
-                            _scannedValue = "";
-                            _scannedProduct = null;
-                            _isLoading = false;
-                            _canScan = true;
-                            _lastScanTime = null;
-                          });
-                        }
-                      },
-                      icon: Icon(Icons.refresh),
-                      label: Text("Clear"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // Test with a sample barcode
-                        _handleScannedCode("10551-71S");
-                      },
-                      icon: Icon(Icons.bug_report),
-                      label: Text("Test"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // Test scanner callback
-                        print('=== MANUAL TEST ===');
-                        print('Testing scanner callback manually');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Scanner test triggered'),
-                            backgroundColor: Colors.purple,
+                // Action buttons
+                if (_scannedValue.isNotEmpty || _scannedProduct != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            if (mounted) {
+                              setState(() {
+                                _scannedValue = "";
+                                _scannedProduct = null;
+                                _isLoading = false;
+                                _canScan = true;
+                                _lastScanTime = null;
+                              });
+                            }
+                          },
+                          icon: Icon(Icons.refresh_rounded, size: 18),
+                          label: Text("Scan Again"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade600,
+                            side: BorderSide(color: Colors.blue.shade300),
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                        );
-                      },
-                      icon: Icon(Icons.camera_alt),
-                      label: Text("Debug"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple,
-                        foregroundColor: Colors.white,
+                        ),
                       ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.home),
-                      label: Text("Back"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -448,49 +594,77 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> _handleScannedCode(String code) async {
-    print('Handling scanned code: $code');
+    print('🔍 Handling scanned code: $code');
     
     // If we should return barcode directly, do so immediately
     if (widget.returnBarcodeDirectly) {
-      print('Returning barcode directly: $code');
+      print('↩️ Returning barcode directly: $code');
       Navigator.pop(context, code);
       return;
     }
     
     try {
-      print('Making API request for barcode: $code');
+      print('🌐 Making API request for barcode: $code');
       final product = await _inventoryController.getProduct(code);
+      
       if (product != null) {
-        print('Product found: ${product.barcode}');
+        print('✅ Product found: ${product.name} (${product.barcode})');
         if (mounted) {
           setState(() {
             _scannedProduct = product;
             _isLoading = false;
           });
+          
+          // Re-enable scanning after 2 seconds for next scan
+          Future.delayed(Duration(seconds: 2), () {
+            if (mounted) {
+              setState(() {
+                _canScan = true;
+              });
+              print('🔄 Scanning re-enabled');
+            }
+          });
         }
       } else {
+        print('❌ Product not found for barcode: $code');
         if (mounted) {
           setState(() {
             _isLoading = false;
           });
+          
+          // Re-enable scanning immediately for product not found
+          _canScan = true;
         }
-
-        // Product not found - show in UI
-        print('Product not found for barcode: $code');
       }
     } catch (e) {
-      print('Error handling scanned code: $e');
+      print('❌ Error handling scanned code: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
+        
+        // Re-enable scanning on error
+        _canScan = true;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.wifi_off, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Network Error: ${e.toString()}')),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            duration: Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _handleScannedCode(code),
+            ),
+          ),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Network Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 

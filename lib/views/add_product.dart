@@ -106,7 +106,9 @@ class _AddProductPageState extends State<AddProductPage> {
 
           // Convert to base64 with proper data URI format
           final bytes = await compressedFile.readAsBytes();
-          _imageBase64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+          _imageBase64 = base64Encode(bytes);
+          
+          print('Image processed successfully: ${bytes.length} bytes, base64 length: ${_imageBase64?.length ?? 0}');
           
           // Clean up original file if different from compressed
           if (originalFile.path != compressedFile.path) {
@@ -139,6 +141,15 @@ class _AddProductPageState extends State<AddProductPage> {
     });
 
     try {
+      final imageData = _imageBase64 != null
+          ? 'data:image/jpeg;base64,$_imageBase64'
+          : null;
+      
+      print('📦 Creating product with:');
+      print('   Barcode: ${widget.barcode}');
+      print('   Name: ${_nameController.text}');
+      print('   Image data length: ${imageData?.length ?? 0} characters');
+      
       final product = Product(
         barcode: widget.barcode,
         name: _nameController.text,
@@ -146,9 +157,7 @@ class _AddProductPageState extends State<AddProductPage> {
             ? double.parse(_mrpController.text)
             : null,
         quantity: int.parse(_quantityController.text),
-        imagePath: _imageBase64 != null
-            ? 'data:image/jpeg;base64,$_imageBase64'
-            : null,
+        imagePath: imageData,
       );
 
       await _inventoryController.addProduct(product);
@@ -435,7 +444,25 @@ class _AddProductPageState extends State<AddProductPage> {
                   child: _imageFile != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.file(_imageFile!, fit: BoxFit.cover),
+                          child: Image.file(
+                            _imageFile!, 
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              print('❌ Error displaying picked image file: $error');
+                              return Container(
+                                color: Colors.red.shade100,
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error, color: Colors.red),
+                                      Text('Image Error', style: TextStyle(color: Colors.red)),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         )
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,

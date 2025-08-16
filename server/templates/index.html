@@ -1520,7 +1520,7 @@
                         console.log('Using customer_photos path - filename:', filename, 'final URL:', img.src);
                     } else {
                         // Fallback for other formats
-                        img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
+                    img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
                         console.log('Using fallback path - final URL:', img.src);
                     }
                 }
@@ -2408,7 +2408,7 @@
                     // Auto-close success modal and refresh
                     setTimeout(() => {
                         document.body.removeChild(successModal);
-                        loadProductLocations(); // Refresh the list
+                    loadProductLocations(); // Refresh the list
                     }, 2000);
                 } else {
                     throw new Error(result.error || 'Failed to delete location');

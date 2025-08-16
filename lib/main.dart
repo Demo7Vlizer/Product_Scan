@@ -32,9 +32,10 @@ Future<void> main() async {
   
   // Load server URL configuration
   try {
-  await RequestClient.loadServerUrl();
+    await RequestClient.loadServerUrl();
+    print('🌐 Server URL loaded: ${RequestClient.baseUrl}');
   } catch (e) {
-    debugPrint('Error loading server URL: $e');
+    debugPrint('❌ Error loading server URL: $e');
   }
   
   // Run the application

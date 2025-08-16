@@ -42,6 +42,8 @@ class _AddProductSimplePageState extends State<AddProductSimplePage> {
       // Convert to base64
       List<int> imageBytes = await _imageFile!.readAsBytes();
       _imageBase64 = base64Encode(imageBytes);
+      
+      print('Image processed successfully: ${imageBytes.length} bytes, base64 length: ${_imageBase64?.length ?? 0}');
     }
   }
 
@@ -62,6 +64,15 @@ class _AddProductSimplePageState extends State<AddProductSimplePage> {
     });
 
     try {
+      final imageData = _imageBase64 != null
+          ? 'data:image/jpeg;base64,$_imageBase64'
+          : null;
+      
+      print('📦 Creating product with:');
+      print('   Barcode: $_scannedBarcode');
+      print('   Name: ${_nameController.text}');
+      print('   Image data length: ${imageData?.length ?? 0} characters');
+      
       final product = Product(
         barcode: _scannedBarcode,
         name: _nameController.text,
@@ -69,9 +80,7 @@ class _AddProductSimplePageState extends State<AddProductSimplePage> {
             ? double.parse(_mrpController.text)
             : null,
         quantity: 1,
-        imagePath: _imageBase64 != null
-            ? 'data:image/jpeg;base64,$_imageBase64'
-            : null,
+        imagePath: imageData,
       );
 
       await _inventoryController.addProduct(product);
@@ -326,7 +335,25 @@ class _AddProductSimplePageState extends State<AddProductSimplePage> {
                 child: _imageFile != null
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(_imageFile!, fit: BoxFit.cover),
+                        child: Image.file(
+                          _imageFile!, 
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            print('❌ Error displaying picked image file: $error');
+                            return Container(
+                              color: Colors.red.shade100,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.error, color: Colors.red),
+                                    Text('Image Error', style: TextStyle(color: Colors.red)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       )
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
