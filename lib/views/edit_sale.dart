@@ -1430,12 +1430,17 @@ class _EditSalePageState extends State<EditSalePage> {
   void _confirmDeletePhoto(int index) async {
     final photoToDelete = _customerPhotosBase64[index];
     print('🗑️ Attempting to delete photo: $photoToDelete');
+    print('👤 Customer info: $_selectedCustomerName ($_selectedCustomerPhone)');
     
     // If it's a server file path, try to delete from server
     if (!photoToDelete.startsWith('data:image')) {
       try {
         print('📡 Sending delete request to server...');
-        await _inventoryController.deletePhotoFile(photoToDelete);
+        await _inventoryController.deletePhotoFile(
+          photoToDelete,
+          customerName: _selectedCustomerName,
+          customerPhone: _selectedCustomerPhone,
+        );
         print('✅ Successfully deleted photo from server: $photoToDelete');
       } catch (e) {
         print('❌ Failed to delete photo from server: $e');
@@ -1950,7 +1955,53 @@ class _EditSalePageState extends State<EditSalePage> {
                   : jsonEncode(_customerPhotosBase64);
             }
             
-            if (quantityDifference != 0 || photosToSend != widget.sale.recipientPhoto) {
+            // Check if photos have changed (more robust comparison)
+            bool photosChanged = false;
+            try {
+              if (photosToSend != widget.sale.recipientPhoto) {
+                // Handle null cases
+                if ((photosToSend == null && widget.sale.recipientPhoto != null) ||
+                    (photosToSend != null && widget.sale.recipientPhoto == null)) {
+                  photosChanged = true;
+                } else if (photosToSend != null && widget.sale.recipientPhoto != null) {
+                  // Both are not null, compare the actual content
+                  List<String> currentPhotos = _customerPhotosBase64;
+                  List<String> originalPhotos = [];
+                  
+                  // Parse original photos
+                  try {
+                    if (widget.sale.recipientPhoto!.startsWith('[')) {
+                      originalPhotos = List<String>.from(jsonDecode(widget.sale.recipientPhoto!));
+                    } else {
+                      originalPhotos = [widget.sale.recipientPhoto!];
+                    }
+                  } catch (e) {
+                    originalPhotos = [widget.sale.recipientPhoto!];
+                  }
+                  
+                  // Compare arrays
+                  if (currentPhotos.length != originalPhotos.length) {
+                    photosChanged = true;
+                  } else {
+                    for (int i = 0; i < currentPhotos.length; i++) {
+                      if (!originalPhotos.contains(currentPhotos[i])) {
+                        photosChanged = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              print('Error comparing photos, assuming changed: $e');
+              photosChanged = true;
+            }
+            
+            print('🔍 Photo comparison: quantityDiff=$quantityDifference, photosChanged=$photosChanged');
+            print('📸 Original photos: ${widget.sale.recipientPhoto}');
+            print('📸 Current photos: $photosToSend');
+            
+            if (quantityDifference != 0 || photosChanged) {
               // Update the transaction in database (with safe handling for missing IDs)
               await _inventoryController.updateTransactionSafe(
                 item.id!,

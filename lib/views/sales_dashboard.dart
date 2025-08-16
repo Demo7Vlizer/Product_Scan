@@ -442,7 +442,7 @@ class _SalesDashboardPageState extends State<SalesDashboardPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => FindProductPage(),
+                                  builder: (context) => FindProductPage(initialTabIndex: 0), // Add tab
                                 ),
                               );
                             },
@@ -459,7 +459,7 @@ class _SalesDashboardPageState extends State<SalesDashboardPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => FindProductPage(),
+                                  builder: (context) => FindProductPage(initialTabIndex: 1), // Search tab
                                 ),
                               );
                             },
@@ -496,7 +496,7 @@ class _SalesDashboardPageState extends State<SalesDashboardPage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => FindProductPage(),
+                                  builder: (context) => FindProductPage(initialTabIndex: 2), // Browse tab
                                 ),
                               );
                             },

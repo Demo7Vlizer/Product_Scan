@@ -466,12 +466,17 @@ class InventoryController {
   }
 
   // Delete photo file from server
-  Future<void> deletePhotoFile(String photoPath) async {
+  Future<void> deletePhotoFile(String photoPath, {String? customerName, String? customerPhone}) async {
     print('🌐 [InventoryController] Deleting photo: $photoPath');
+    print('👤 [InventoryController] Customer: $customerName ($customerPhone)');
     print('🔗 [InventoryController] Request URL: $_baseUrl/api/photos/delete');
     
     try {
-      final requestBody = {'photo_path': photoPath};
+      final requestBody = {
+        'photo_path': photoPath,
+        'customer_name': customerName,
+        'customer_phone': customerPhone,
+      };
       print('📤 [InventoryController] Request body: ${json.encode(requestBody)}');
       
       var response = await http.delete(
@@ -494,6 +499,16 @@ class InventoryController {
         }
       } else {
         print('✅ [InventoryController] Photo deletion successful');
+        
+        // Parse response to show database update info
+        try {
+          var data = json.decode(response.body);
+          if (data['database_updated'] != null) {
+            print('🔄 [InventoryController] Database updated: ${data['database_updated']} transactions');
+          }
+        } catch (e) {
+          // Ignore parsing errors for response data
+        }
       }
     } on TimeoutException {
       print('⏱️ [InventoryController] Delete request timeout');

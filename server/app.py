@@ -2128,10 +2128,12 @@ def force_delete_customer_old_photos(customer_name, customer_phone, new_photo_pa
 
 @app.route('/api/photos/delete', methods=['DELETE'])
 def delete_photo():
-    """Delete a photo file from the server"""
+    """Delete a photo file from the server and update database references"""
     try:
         data = request.json
         photo_path = data.get('photo_path')
+        customer_name = data.get('customer_name')
+        customer_phone = data.get('customer_phone')
         
         if not photo_path:
             return jsonify({'error': 'Photo path is required'}), 400
@@ -2140,11 +2142,94 @@ def delete_photo():
         if photo_path.startswith('data:image'):
             return jsonify({'message': 'Base64 images don\'t need server deletion'}), 200
         
-        # Use the safe delete function
+        print(f'🗑️ Deleting photo: {photo_path} for customer: {customer_name} ({customer_phone})')
+        
+        # Update database to remove this photo from all transactions
+        if customer_name and customer_phone:
+            conn = sqlite3.connect('inventory.db')
+            cursor = conn.cursor()
+            
+            try:
+                # Get all transactions for this customer that have photos
+                cursor.execute('''
+                    SELECT id, recipient_photo FROM transactions 
+                    WHERE recipient_name = ? AND recipient_phone = ? 
+                    AND recipient_photo IS NOT NULL AND recipient_photo != ''
+                ''', (customer_name, customer_phone))
+                
+                transactions = cursor.fetchall()
+                updated_count = 0
+                
+                for trans_id, current_photo_data in transactions:
+                    if not current_photo_data:
+                        continue
+                    
+                    try:
+                        # Handle JSON array of photos
+                        if current_photo_data.startswith('['):
+                            photos = json.loads(current_photo_data)
+                            if isinstance(photos, list) and photo_path in photos:
+                                # Remove the deleted photo from the array
+                                photos.remove(photo_path)
+                                
+                                # Update the database with the new photo array
+                                if photos:
+                                    # Still have photos left
+                                    new_photo_data = json.dumps(photos) if len(photos) > 1 else photos[0]
+                                else:
+                                    # No photos left
+                                    new_photo_data = None
+                                
+                                cursor.execute('''
+                                    UPDATE transactions 
+                                    SET recipient_photo = ?
+                                    WHERE id = ?
+                                ''', (new_photo_data, trans_id))
+                                
+                                updated_count += 1
+                                print(f'✅ Updated transaction {trans_id} - removed photo from array')
+                        
+                        # Handle single photo
+                        elif current_photo_data == photo_path:
+                            cursor.execute('''
+                                UPDATE transactions 
+                                SET recipient_photo = NULL
+                                WHERE id = ?
+                            ''', (trans_id,))
+                            
+                            updated_count += 1
+                            print(f'✅ Updated transaction {trans_id} - removed single photo')
+                    
+                    except json.JSONDecodeError:
+                        # Handle single photo (not JSON)
+                        if current_photo_data == photo_path:
+                            cursor.execute('''
+                                UPDATE transactions 
+                                SET recipient_photo = NULL
+                                WHERE id = ?
+                            ''', (trans_id,))
+                            
+                            updated_count += 1
+                            print(f'✅ Updated transaction {trans_id} - removed single photo (non-JSON)')
+                
+                conn.commit()
+                conn.close()
+                
+                print(f'🔄 Updated {updated_count} transactions in database')
+                
+            except Exception as db_error:
+                conn.close()
+                print(f'❌ Database update error: {db_error}')
+                # Continue with file deletion even if database update fails
+        
+        # Now delete the actual file
         success = safe_delete_photo(photo_path)
         
         if success:
-            return jsonify({'message': 'Photo deleted successfully'})
+            return jsonify({
+                'message': 'Photo deleted successfully', 
+                'database_updated': updated_count if 'updated_count' in locals() else 0
+            })
         else:
             return jsonify({'message': 'Photo not found or still in use by other transactions'})
     

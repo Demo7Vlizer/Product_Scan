@@ -9,7 +9,9 @@ import '../models/productLocation.dart';
 import '../services/network/request_service.dart';
 
 class FindProductPage extends StatefulWidget {
-  const FindProductPage({Key? key}) : super(key: key);
+  final int initialTabIndex;
+  
+  const FindProductPage({Key? key, this.initialTabIndex = 0}) : super(key: key);
 
   @override
   State<FindProductPage> createState() => _FindProductPageState();
@@ -44,7 +46,11 @@ class _FindProductPageState extends State<FindProductPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3, 
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
     _loadAllLocations();
     
     // Add listener for search suggestions

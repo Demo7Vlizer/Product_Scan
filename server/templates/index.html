@@ -1307,7 +1307,12 @@
 
         // View customer photo(s) - supports both single photo and multiple photos
         function viewCustomerPhoto(photoPath, customerName) {
-            if (!photoPath) return;
+            console.log('viewCustomerPhoto called with:', { photoPath, customerName });
+            
+            if (!photoPath) {
+                console.error('No photo path provided');
+                return;
+            }
             
             // Parse photos - could be single photo or JSON array
             let photos = [];
@@ -1317,9 +1322,11 @@
                 if (!Array.isArray(photos)) {
                     photos = [photoPath]; // Single photo
                 }
+                console.log('Parsed photos as JSON array:', photos);
             } catch (e) {
                 // Not JSON, treat as single photo
                 photos = [photoPath];
+                console.log('Treated as single photo:', photos);
             }
             
             let currentPhotoIndex = 0;
@@ -1495,14 +1502,27 @@
             // Function to update the displayed image
             function updateDisplayedImage() {
                 const currentPhoto = photos[currentPhotoIndex];
+                console.log('updateDisplayedImage - currentPhoto:', currentPhoto);
                 
                 // Handle different image sources
                 if (currentPhoto.startsWith('data:image')) {
                     img.src = currentPhoto;
+                    console.log('Using base64 data image');
                 } else {
                     // Add cache-busting parameter to prevent caching issues
                     const cacheBuster = new Date().getTime();
-                    img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
+                    
+                    // Handle photo paths that already include the folder structure
+                    if (currentPhoto.startsWith('customer_photos/')) {
+                        // Extract just the filename from the path
+                        const filename = currentPhoto.replace('customer_photos/', '');
+                        img.src = `/uploads/customer_photos/${filename}?t=${cacheBuster}`;
+                        console.log('Using customer_photos path - filename:', filename, 'final URL:', img.src);
+                    } else {
+                        // Fallback for other formats
+                        img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
+                        console.log('Using fallback path - final URL:', img.src);
+                    }
                 }
                 
                 // Update photo counter if multiple photos
@@ -1559,11 +1579,17 @@
             updateDisplayedImage();
             
             img.onerror = () => {
+                const currentPhoto = photos[currentPhotoIndex];
+                console.error('Failed to load image:', currentPhoto);
+                console.error('Attempted URL:', img.src);
+                
                 imageContainer.innerHTML = `
                     <div style="padding: 40px; text-align: center; color: #666;">
                         <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: #ff6b6b;"></i>
                         <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">Failed to load image</div>
                         <div style="font-size: 14px;">The photo could not be displayed</div>
+                        <div style="font-size: 12px; margin-top: 10px; color: #999;">Photo path: ${currentPhoto}</div>
+                        <div style="font-size: 12px; color: #999;">URL attempted: ${img.src}</div>
                     </div>
                 `;
             };
