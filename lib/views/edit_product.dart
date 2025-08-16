@@ -105,9 +105,11 @@ class _EditProductPageState extends State<EditProductPage> {
             _imageFile = compressedFile;
           });
 
-          // Convert to base64 with proper data URI format
+          // Convert to base64 (without data URI prefix, will be added when sending)
           final bytes = await compressedFile.readAsBytes();
-          _imageBase64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+          _imageBase64 = base64Encode(bytes);
+          
+          print('Edit Product: Image processed successfully: ${bytes.length} bytes, base64 length: ${_imageBase64?.length ?? 0}');
           
           // Clean up original file if different from compressed
           if (originalFile.path != compressedFile.path) {
@@ -140,6 +142,18 @@ class _EditProductPageState extends State<EditProductPage> {
     });
 
     try {
+      final imageData = _imageBase64 != null
+          ? 'data:image/jpeg;base64,$_imageBase64'
+          : null;
+      
+      print('📝 Updating product with:');
+      print('   Barcode: ${widget.product.barcode}');
+      print('   Name: ${_nameController.text}');
+      print('   Image data length: ${imageData?.length ?? 0} characters');
+      if (imageData != null) {
+        print('   Image data prefix: ${imageData.substring(0, 50)}...');
+      }
+      
       final product = Product(
         id: widget.product.id,
         barcode: widget.product.barcode,
@@ -148,12 +162,30 @@ class _EditProductPageState extends State<EditProductPage> {
             ? double.parse(_mrpController.text)
             : null,
         quantity: int.parse(_quantityController.text),
-        imagePath: _imageBase64 != null
-            ? 'data:image/jpeg;base64,$_imageBase64'
-            : null, // Send null if no new image is selected
+        imagePath: imageData, // Use the properly formatted imageData
       );
 
       await _inventoryController.updateProduct(widget.product.barcode!, product);
+
+      // If image was updated, fetch the updated product to get the new image path
+      final imageWasUpdated = imageData != null;
+      if (imageWasUpdated) {
+        try {
+          final updatedProduct = await _inventoryController.getProduct(widget.product.barcode!);
+          if (updatedProduct != null) {
+            // Update the widget's product data with the new image path
+            widget.product.imagePath = updatedProduct.imagePath;
+            // Clear the temporary image state since we now have the server's image path
+            setState(() {
+              _imageFile = null;
+              _imageBase64 = null;
+            });
+          }
+        } catch (e) {
+          print('Warning: Could not fetch updated product data: $e');
+          // Continue anyway, the update was successful
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

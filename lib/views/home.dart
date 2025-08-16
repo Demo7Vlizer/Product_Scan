@@ -42,7 +42,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: Text(
-          "Eopy Stock Management",
+          "Barcode Stock Management",
           style: TextStyle(
             fontWeight: FontWeight.w400,
             fontSize: 20,
