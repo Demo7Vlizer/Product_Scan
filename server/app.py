@@ -3,7 +3,7 @@ from flask_cors import CORS
 import sqlite3
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import base64
 from werkzeug.utils import secure_filename
 import io
@@ -35,6 +35,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['PRODUCT_PHOTOS_FOLDER'] = PRODUCT_PHOTOS_FOLDER
 app.config['CUSTOMER_PHOTOS_FOLDER'] = CUSTOMER_PHOTOS_FOLDER
 app.config['FIND_PHOTOS_FOLDER'] = FIND_PHOTOS_FOLDER
+
+# Helper function to get local timestamp
+def get_local_timestamp():
+    """Get current timestamp in local timezone"""
+    # You can adjust the timezone offset here if needed
+    # For India (IST), UTC+5:30
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime('%Y-%m-%d %H:%M:%S')
 
 # Database setup
 def init_db():
@@ -89,8 +97,8 @@ def init_db():
             location_name TEXT NOT NULL,
             image_path TEXT NOT NULL,
             notes TEXT,
-            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_date TEXT,
+            updated_date TEXT
         )
     ''')
     
@@ -404,36 +412,89 @@ def update_product(barcode):
 
 @app.route('/api/products/<barcode>', methods=['DELETE'])
 def delete_product(barcode):
+    """Delete a product and its associated photo file"""
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
     
     try:
-        # Get the image path to delete the file
-        cursor.execute('SELECT image_path FROM products WHERE barcode = ?', (barcode,))
-        result = cursor.fetchone()
+        # Get product info for deletion summary
+        cursor.execute('SELECT name, image_path FROM products WHERE barcode = ?', (barcode,))
+        product_info = cursor.fetchone()
         
-        if result and result[0]:
-            # Delete the image file (handle both old and new path formats)
-            image_relative_path = result[0]
-            if image_relative_path.startswith('product_photos/'):
-                # New format: product_photos/filename
-                image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_relative_path)
-            else:
-                # Old format: just filename (assume it's in uploads root)
-                image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_relative_path)
-            
-            if os.path.exists(image_path):
-                os.remove(image_path)
-                print(f"Deleted product image: {image_path}")
+        if not product_info:
+            conn.close()
+            return jsonify({'error': 'Product not found'}), 404
         
-        # Delete the product
+        product_name, image_path = product_info
+        deleted_files = []
+        failed_deletions = []
+        
+        # Delete the product image file if it exists
+        if image_path:
+            try:
+                # Handle both old and new path formats
+                if image_path.startswith('product_photos/'):
+                    # New format: product_photos/filename
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_path)
+                elif image_path.startswith('uploads/'):
+                    # Handle uploads/ prefix
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_path.replace('uploads/', ''))
+                else:
+                    # Old format: just filename (assume it's in uploads root)
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_path)
+                
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(image_path)
+                    print(f"✅ Deleted product image: {file_path}")
+                else:
+                    print(f"⚠️ Product image file not found: {file_path}")
+            except Exception as e:
+                failed_deletions.append(f"Product image ({image_path}): {str(e)}")
+                print(f"❌ Error deleting product image {image_path}: {e}")
+        
+        # Delete the product from database
         cursor.execute('DELETE FROM products WHERE barcode = ?', (barcode,))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'error': 'Product not found'}), 404
+        
         conn.commit()
         conn.close()
         
-        return jsonify({'Result': 'Product deleted successfully'})
+        # Prepare response with deletion summary
+        response_data = {
+            'Result': 'Product deleted successfully',
+            'product_info': {
+                'barcode': barcode,
+                'name': product_name
+            },
+            'deletion_summary': {
+                'database_records_deleted': 1,
+                'photo_files_deleted': len(deleted_files),
+                'deleted_files': deleted_files
+            }
+        }
+        
+        if failed_deletions:
+            response_data['warnings'] = {
+                'failed_file_deletions': failed_deletions,
+                'message': 'Product deleted but photo file could not be removed'
+            }
+        
+        print(f"🗑️ Product deletion completed:")
+        print(f"   📦 Product: {product_name} ({barcode})")
+        print(f"   📊 Database records deleted: 1")
+        print(f"   📸 Photo files deleted: {len(deleted_files)}")
+        if failed_deletions:
+            print(f"   ⚠️ Failed deletions: {len(failed_deletions)}")
+        
+        return jsonify(response_data)
+        
     except Exception as e:
         conn.close()
+        print(f"❌ Error in delete_product: {e}")
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/products/search/<query>', methods=['GET'])
@@ -982,19 +1043,65 @@ def update_transaction(transaction_id):
 # Delete transaction endpoint
 @app.route('/api/transactions/<int:transaction_id>', methods=['DELETE'])
 def delete_transaction(transaction_id):
+    """Delete a transaction and all associated customer photos"""
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
     
     try:
-        # First, get the transaction details to reverse inventory changes
-        cursor.execute('SELECT barcode, transaction_type, quantity FROM transactions WHERE id = ?', (transaction_id,))
+        # Get transaction details including customer photos
+        cursor.execute('''
+            SELECT barcode, transaction_type, quantity, recipient_name, recipient_photo 
+            FROM transactions WHERE id = ?
+        ''', (transaction_id,))
         transaction = cursor.fetchone()
         
         if not transaction:
             conn.close()
             return jsonify({'error': 'Transaction not found'}), 404
         
-        barcode, transaction_type, quantity = transaction
+        barcode, transaction_type, quantity, recipient_name, recipient_photo = transaction
+        deleted_files = []
+        failed_deletions = []
+        
+        # Delete customer photos if they exist
+        if recipient_photo:
+            try:
+                # Parse photos - could be single photo or JSON array
+                photos = []
+                try:
+                    # Try to parse as JSON array first
+                    photos = json.loads(recipient_photo)
+                    if not isinstance(photos, list):
+                        photos = [recipient_photo]  # Single photo
+                except:
+                    # Not JSON, treat as single photo
+                    photos = [recipient_photo]
+                
+                # Delete each photo file
+                for photo_path in photos:
+                    if photo_path and not photo_path.startswith('data:image'):
+                        try:
+                            # Handle different path formats
+                            if photo_path.startswith('customer_photos/'):
+                                file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo_path)
+                            elif photo_path.startswith('uploads/'):
+                                file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo_path.replace('uploads/', ''))
+                            else:
+                                # Assume it's in customer_photos folder
+                                file_path = os.path.join(app.config['CUSTOMER_PHOTOS_FOLDER'], photo_path)
+                            
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                                deleted_files.append(photo_path)
+                                print(f"✅ Deleted customer photo: {file_path}")
+                            else:
+                                print(f"⚠️ Customer photo file not found: {file_path}")
+                        except Exception as e:
+                            failed_deletions.append(f"Customer photo ({photo_path}): {str(e)}")
+                            print(f"❌ Error deleting customer photo {photo_path}: {e}")
+            except Exception as e:
+                failed_deletions.append(f"Photo parsing error: {str(e)}")
+                print(f"❌ Error parsing customer photos: {e}")
         
         # Reverse the inventory changes
         if transaction_type == 'OUT':
@@ -1004,7 +1111,7 @@ def delete_transaction(transaction_id):
             # If it was a restock (IN), subtract the quantity from inventory
             cursor.execute('UPDATE products SET quantity = quantity - ? WHERE barcode = ?', (quantity, barcode))
         
-        # Delete the transaction
+        # Delete the transaction from database
         cursor.execute('DELETE FROM transactions WHERE id = ?', (transaction_id,))
         
         if cursor.rowcount == 0:
@@ -1014,9 +1121,44 @@ def delete_transaction(transaction_id):
         conn.commit()
         conn.close()
         
-        return jsonify({'Result': 'Transaction deleted successfully'})
+        # Prepare response with deletion summary
+        response_data = {
+            'Result': 'Transaction deleted successfully',
+            'transaction_info': {
+                'id': transaction_id,
+                'barcode': barcode,
+                'type': transaction_type,
+                'quantity': quantity,
+                'recipient_name': recipient_name
+            },
+            'deletion_summary': {
+                'database_records_deleted': 1,
+                'photo_files_deleted': len(deleted_files),
+                'deleted_files': deleted_files,
+                'inventory_adjusted': True
+            }
+        }
+        
+        if failed_deletions:
+            response_data['warnings'] = {
+                'failed_file_deletions': failed_deletions,
+                'message': 'Transaction deleted but some photo files could not be removed'
+            }
+        
+        print(f"🗑️ Transaction deletion completed:")
+        print(f"   📋 Transaction ID: {transaction_id}")
+        print(f"   👤 Customer: {recipient_name or 'Unknown'}")
+        print(f"   📦 Product: {barcode} ({transaction_type} {quantity})")
+        print(f"   📊 Database records deleted: 1")
+        print(f"   📸 Photo files deleted: {len(deleted_files)}")
+        if failed_deletions:
+            print(f"   ⚠️ Failed deletions: {len(failed_deletions)}")
+        
+        return jsonify(response_data)
+        
     except Exception as e:
         conn.close()
+        print(f"❌ Error in delete_transaction: {e}")
         return jsonify({'error': str(e)}), 400
 
 # Update product quantity endpoint (for inventory adjustment)
@@ -1438,15 +1580,18 @@ def add_product_location():
     cursor = conn.cursor()
     
     try:
-        # First, insert the location record
+        # First, insert the location record with local timestamp
+        current_time = get_local_timestamp()
         cursor.execute('''
-            INSERT INTO product_location_photos (product_name, location_name, image_path, notes)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO product_location_photos (product_name, location_name, image_path, notes, created_date, updated_date)
+            VALUES (?, ?, ?, ?, ?, ?)
         ''', (
             data['product_name'],
             data['location_name'],
             '',  # Will be updated with first image path
-            data.get('notes', '')
+            data.get('notes', ''),
+            current_time,
+            current_time
         ))
         
         location_id = cursor.lastrowid
@@ -1672,13 +1817,14 @@ def update_product_location(location_id):
         
         cursor.execute('''
             UPDATE product_location_photos 
-            SET product_name = ?, location_name = ?, image_path = ?, notes = ?, updated_date = CURRENT_TIMESTAMP
+            SET product_name = ?, location_name = ?, image_path = ?, notes = ?, updated_date = ?
             WHERE id = ?
         ''', (
             data['product_name'],
             data['location_name'],
             main_image_path,
             data.get('notes', ''),
+            get_local_timestamp(),
             location_id
         ))
         
@@ -1695,35 +1841,117 @@ def update_product_location(location_id):
 
 @app.route('/api/product-locations/<int:location_id>', methods=['DELETE'])
 def delete_product_location(location_id):
-    """Delete a product location"""
+    """Delete a product location and all associated photos"""
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
     
     try:
-        # Get the image path to delete the file
+        # Check if location exists
+        cursor.execute('SELECT id, product_name, location_name FROM product_location_photos WHERE id = ?', (location_id,))
+        location_info = cursor.fetchone()
+        
+        if not location_info:
+            conn.close()
+            return jsonify({'error': 'Product location not found'}), 404
+        
+        deleted_files = []
+        failed_deletions = []
+        
+        # 1. Get and delete the main image from product_location_photos
         cursor.execute('SELECT image_path FROM product_location_photos WHERE id = ?', (location_id,))
-        result = cursor.fetchone()
+        main_result = cursor.fetchone()
         
-        if result and result[0]:
-            # Delete the image file
-            image_path = os.path.join(app.config['UPLOAD_FOLDER'], result[0])
-            if os.path.exists(image_path):
-                os.remove(image_path)
-                print(f"Deleted location image: {image_path}")
+        if main_result and main_result[0]:
+            main_image_path = main_result[0]
+            try:
+                # Handle both absolute and relative paths
+                if main_image_path.startswith('find-photos/') or main_image_path.startswith('uploads/'):
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], main_image_path.replace('uploads/', ''))
+                else:
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], main_image_path)
+                
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(main_image_path)
+                    print(f"✅ Deleted main location image: {file_path}")
+                else:
+                    print(f"⚠️ Main image file not found: {file_path}")
+            except Exception as e:
+                failed_deletions.append(f"Main image ({main_image_path}): {str(e)}")
+                print(f"❌ Error deleting main image {main_image_path}: {e}")
         
-        # Delete the location
+        # 2. Get and delete all additional images from product_location_images
+        cursor.execute('SELECT image_path FROM product_location_images WHERE location_id = ?', (location_id,))
+        additional_images = cursor.fetchall()
+        
+        for (image_path,) in additional_images:
+            if image_path:
+                try:
+                    # Handle both absolute and relative paths
+                    if image_path.startswith('find-photos/') or image_path.startswith('uploads/'):
+                        file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_path.replace('uploads/', ''))
+                    else:
+                        file_path = os.path.join(app.config['UPLOAD_FOLDER'], image_path)
+                    
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        deleted_files.append(image_path)
+                        print(f"✅ Deleted additional location image: {file_path}")
+                    else:
+                        print(f"⚠️ Additional image file not found: {file_path}")
+                except Exception as e:
+                    failed_deletions.append(f"Additional image ({image_path}): {str(e)}")
+                    print(f"❌ Error deleting additional image {image_path}: {e}")
+        
+        # 3. Delete database records
+        # Delete from product_location_images first (foreign key constraint)
+        cursor.execute('DELETE FROM product_location_images WHERE location_id = ?', (location_id,))
+        additional_deleted = cursor.rowcount
+        
+        # Delete from main product_location_photos table
         cursor.execute('DELETE FROM product_location_photos WHERE id = ?', (location_id,))
+        main_deleted = cursor.rowcount
         
-        if cursor.rowcount == 0:
+        if main_deleted == 0:
             conn.close()
             return jsonify({'error': 'Product location not found'}), 404
         
         conn.commit()
         conn.close()
         
-        return jsonify({'Result': 'Product location deleted successfully'})
+        # Prepare response with deletion summary
+        response_data = {
+            'Result': 'Product location deleted successfully',
+            'location_info': {
+                'id': location_info[0],
+                'product_name': location_info[1],
+                'location_name': location_info[2]
+            },
+            'deletion_summary': {
+                'database_records_deleted': main_deleted + additional_deleted,
+                'photo_files_deleted': len(deleted_files),
+                'deleted_files': deleted_files
+            }
+        }
+        
+        if failed_deletions:
+            response_data['warnings'] = {
+                'failed_file_deletions': failed_deletions,
+                'message': 'Location deleted but some photo files could not be removed'
+            }
+        
+        print(f"🗑️ Location deletion completed:")
+        print(f"   📍 Location: {location_info[1]} - {location_info[2]}")
+        print(f"   📊 Database records deleted: {main_deleted + additional_deleted}")
+        print(f"   📸 Photo files deleted: {len(deleted_files)}")
+        if failed_deletions:
+            print(f"   ⚠️ Failed deletions: {len(failed_deletions)}")
+        
+        return jsonify(response_data)
+        
     except Exception as e:
         conn.close()
+        print(f"❌ Error in delete_product_location: {e}")
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/product-locations/suggestions/<query>', methods=['GET'])
