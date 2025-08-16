@@ -295,12 +295,12 @@ def add_product():
         # Process and save compressed image to product_photos folder
         filename = f"{data['barcode']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
         
-        # Temporarily disable compression to test
+        # Enable maximum compression for product images
         success, full_path, error_msg = process_and_save_image(
             data['image_path'], 
             filename, 
             app.config['PRODUCT_PHOTOS_FOLDER'],
-            compress=False  # Temporarily disabled for debugging
+            compress=True  # Enable maximum compression
         )
         
         print(f"🔧 DEBUG: Save result - Success: {success}, Path: {full_path}, Error: {error_msg}")
@@ -2277,14 +2277,14 @@ def process_and_save_image(base64_data, filename, folder_path, compress=True):
                 # Re-open for processing (verify() closes the image)
                 image_bytes = base64.b64decode(base64_data)
                 
-                # Always compress aggressively to save space
+                # Apply maximum compression to save space
                 print(f"Compressing image ({original_size_kb:.1f}KB) to save space...")
                 image_bytes = compress_image(
                     image_bytes, 
-                    max_size_kb=50,      # Very small target size
-                    quality=60,          # Lower quality for smaller files
-                    max_width=400,       # Smaller dimensions
-                    max_height=400
+                    max_size_kb=25,      # Even smaller target size
+                    quality=35,          # Much lower quality for maximum compression
+                    max_width=300,       # Even smaller dimensions
+                    max_height=300
                 )
                 
                 compressed_size_kb = len(image_bytes) / 1024

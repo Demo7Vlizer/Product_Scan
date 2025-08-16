@@ -51,13 +51,13 @@ class _AddProductPageState extends State<AddProductPage> {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
       final String targetPath = '${tempDir.path}/$fileName';
       
-      // Compress image with aggressive settings
+      // Compress image with maximum compression settings
       final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
         imageFile.absolute.path,
         targetPath,
-        minWidth: 600,        // Reduced from 1200
-        minHeight: 600,       // Reduced from 1200
-        quality: 60,          // Reduced from 85 for smaller size
+        minWidth: 400,        // Further reduced for maximum compression
+        minHeight: 400,       // Further reduced for maximum compression
+        quality: 40,          // Much lower quality for maximum compression
         rotate: 0,
         format: CompressFormat.jpeg,
       );
@@ -88,9 +88,9 @@ class _AddProductPageState extends State<AddProductPage> {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 800,          // Reduced from previous
-        maxHeight: 800,         // Reduced from previous
-        imageQuality: 70,       // Reduced from 75
+        maxWidth: 400,          // Maximum compression - smaller initial size
+        maxHeight: 400,         // Maximum compression - smaller initial size
+        imageQuality: 40,       // Much lower quality for maximum compression
       );
 
       if (image != null) {

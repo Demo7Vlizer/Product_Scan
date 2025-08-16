@@ -69,6 +69,40 @@ class _ProductListPageState extends State<ProductListPage> {
     }
   }
 
+  void _showImageDialog(Product product) {
+    if (product.imagePath == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          color: Colors.black87,
+          child: Center(
+            child: Container(
+              margin: EdgeInsets.all(20),
+              child: Image.network(
+                '${RequestClient.baseUrl}/uploads/${product.imagePath}',
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return CircularProgressIndicator(color: Colors.white);
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.white54,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteProduct(Product product) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -437,6 +471,26 @@ class _ProductListPageState extends State<ProductListPage> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    // View image button (only show if product has image)
+                                    if (product.imagePath != null) ...[
+                                      GestureDetector(
+                                        onTap: () => _showImageDialog(product),
+                                        child: Container(
+                                          padding: EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.shade50,
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: Colors.green.shade200, width: 0.5),
+                                          ),
+                                          child: Icon(
+                                            Icons.visibility_outlined,
+                                            size: 16,
+                                            color: Colors.green.shade600,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                    ],
                                     GestureDetector(
                                       onTap: () {
                                         Navigator.push(

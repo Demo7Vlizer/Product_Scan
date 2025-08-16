@@ -32,7 +32,12 @@ class _AddProductSimplePageState extends State<AddProductSimplePage> {
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 400,          // Maximum compression - smaller initial size
+      maxHeight: 400,         // Maximum compression - smaller initial size
+      imageQuality: 40,       // Much lower quality for maximum compression
+    );
 
     if (image != null) {
       setState(() {
