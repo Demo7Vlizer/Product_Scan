@@ -464,7 +464,7 @@ class InventoryController {
     }
   }
 
-  // Update transaction with better error handling
+  // Update transaction with better error handling - use bulk update for consolidated sales
   Future<void> updateTransactionSafe(
     int transactionId, {
     required String recipientName,
@@ -473,6 +473,7 @@ class InventoryController {
     String? recipientPhoto,
   }) async {
     try {
+      // First try individual transaction update
       await updateTransaction(
         transactionId,
         recipientName: recipientName,
@@ -480,13 +481,78 @@ class InventoryController {
         quantity: quantity,
         recipientPhoto: recipientPhoto,
       );
+      print('✅ Successfully updated transaction $transactionId with quantity: $quantity');
     } catch (e) {
-      // If the specific transaction ID doesn't exist, that's okay for consolidated sales
+      // If the specific transaction ID doesn't exist, use bulk update for consolidated sales
       if (e.toString().contains('404') || e.toString().contains('not found')) {
-        print('Transaction $transactionId not found - this is normal for consolidated sales');
-        return; // Don't throw error, just skip this update
+        print('⚠️ Transaction $transactionId not found - using bulk update for consolidated sale');
+        
+        try {
+          // Use bulk update endpoint for consolidated sales
+          await bulkUpdateTransactions(
+            recipientName: recipientName,
+            recipientPhone: recipientPhone,
+            quantity: quantity,
+            recipientPhoto: recipientPhoto,
+          );
+          print('✅ Successfully bulk updated transactions for $recipientName');
+        } catch (bulkError) {
+          print('❌ Bulk update also failed: $bulkError');
+          throw Exception('Failed to update sale: ${bulkError.toString()}');
+        }
+        return;
       }
+      
+      // Log the error for debugging
+      print('❌ Failed to update transaction $transactionId: $e');
       rethrow; // Re-throw other errors
+    }
+  }
+
+  // Update transactions by customer info (for consolidated sales)
+  Future<void> bulkUpdateTransactions({
+    required String recipientName,
+    required String recipientPhone,
+    required int quantity,
+    String? recipientPhoto,
+  }) async {
+    try {
+      final Map<String, dynamic> requestBody = {
+        'recipient_name': recipientName,
+        'recipient_phone': recipientPhone,
+        'new_quantity': quantity,
+      };
+      
+      // Only include photo if provided
+      if (recipientPhoto != null) {
+        requestBody['recipient_photo'] = recipientPhoto;
+      }
+      
+      var response = await http.put(
+        Uri.parse('$_baseUrl/api/transactions/update-by-customer'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(requestBody),
+      ).timeout(Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        try {
+          var data = json.decode(response.body);
+          throw Exception(data['error'] ?? 'Failed to update transactions by customer');
+        } catch (jsonError) {
+          throw Exception('Server returned error ${response.statusCode}: ${response.reasonPhrase}');
+        }
+      }
+    } on http.ClientException {
+      throw Exception('Connection failed: Unable to reach server. Please check if the server is running and your network connection.');
+    } on SocketException {
+      throw Exception('Network error: Please check your internet connection and server status.');
+    } on TimeoutException {
+      throw Exception('Request timeout: Server is taking too long to respond. Please try again.');
+    } catch (e) {
+      if (e.toString().contains('WinError 233') || e.toString().contains('No process is on')) {
+        throw Exception('Server connection failed: The server appears to be offline. Please start the server and try again.');
+      }
+      throw Exception('Network error: $e');
     }
   }
 

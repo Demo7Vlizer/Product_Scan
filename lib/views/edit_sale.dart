@@ -88,6 +88,101 @@ class _EditSalePageState extends State<EditSalePage> {
     setState(() {
       item.quantity = newQuantity;
     });
+    
+    // Show immediate feedback to user
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Quantity updated to $newQuantity. Remember to save changes.'),
+        backgroundColor: Colors.blue.shade600,
+        duration: Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+
+  void _showQuantityEditDialog(SaleItem item) {
+    TextEditingController quantityController = TextEditingController(
+      text: item.quantity.toString(),
+    );
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit Quantity'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.productName,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: quantityController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Quantity',
+                hintText: 'Enter quantity',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              onSubmitted: (value) {
+                int? newQuantity = int.tryParse(value);
+                if (newQuantity != null && newQuantity > 0) {
+                  _updateItemQuantity(item, newQuantity);
+                  Navigator.pop(context);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please enter a valid quantity (1 or more)'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              int? newQuantity = int.tryParse(quantityController.text);
+              if (newQuantity != null && newQuantity > 0) {
+                _updateItemQuantity(item, newQuantity);
+                Navigator.pop(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Please enter a valid quantity (1 or more)'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: Text('Update'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeleteItemDialog(SaleItem item) {
@@ -732,20 +827,34 @@ class _EditSalePageState extends State<EditSalePage> {
                   
                   SizedBox(width: 12),
                   
-                  // Quantity display
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.blue.shade100, width: 0.5),
-                    ),
-                    child: Text(
-                      '${item.quantity}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.blue.shade700,
+                  // Quantity display - Tappable for manual editing
+                  GestureDetector(
+                    onTap: () => _showQuantityEditDialog(item),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.blue.shade100, width: 0.5),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${item.quantity}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.edit,
+                            size: 12,
+                            color: Colors.blue.shade600,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2002,6 +2111,10 @@ class _EditSalePageState extends State<EditSalePage> {
             print('📸 Current photos: $photosToSend');
             
             if (quantityDifference != 0 || photosChanged) {
+              print('🔄 Processing changes for ${item.productName}:');
+              print('   - Quantity change: ${item.originalQuantity} -> ${item.quantity} (diff: $quantityDifference)');
+              print('   - Photos changed: $photosChanged');
+              
               // Update the transaction in database (with safe handling for missing IDs)
               await _inventoryController.updateTransactionSafe(
                 item.id!,
@@ -2010,7 +2123,6 @@ class _EditSalePageState extends State<EditSalePage> {
                 quantity: item.quantity,
                 recipientPhoto: photosToSend,
               );
-              print('Successfully updated transaction ${item.id}');
               
               // Adjust inventory if quantity changed
               if (quantityDifference != 0) {
@@ -2025,11 +2137,16 @@ class _EditSalePageState extends State<EditSalePage> {
                     item.barcode,
                     newInventoryQuantity,
                   );
-                  print('Updated inventory for ${item.barcode}: ${newInventoryQuantity}');
+                  print('📦 Updated inventory for ${item.barcode}: ${product.quantity} -> $newInventoryQuantity');
+                } else {
+                  print('⚠️ Product ${item.barcode} not found for inventory update');
                 }
               }
+              
+              // Update the original quantity to reflect the saved state
+              item.originalQuantity = item.quantity;
             } else {
-              print('No changes needed for item ${item.productName}');
+              print('ℹ️ No changes needed for item ${item.productName}');
             }
           } catch (e) {
             print('Error updating transaction ${item.id}: $e');
@@ -2064,15 +2181,32 @@ class _EditSalePageState extends State<EditSalePage> {
       }
       
       if (mounted) {
+        // Count how many items were actually updated
+        int updatedCount = _saleItems.where((item) => 
+          item.quantity != item.originalQuantity || 
+          _customerPhotosBase64.isNotEmpty
+        ).length;
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Sale updated successfully!',
-              style: TextStyle(fontSize: 14),
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    updatedCount > 0 
+                        ? 'Sale updated successfully! ($updatedCount items changed)'
+                        : 'Sale saved successfully!',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
             ),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
             margin: EdgeInsets.all(16),
+            duration: Duration(seconds: 3),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),

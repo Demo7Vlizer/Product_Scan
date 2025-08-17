@@ -1245,6 +1245,97 @@ def update_customer_by_phone(phone):
         conn.close()
         return jsonify({'error': str(e)}), 400
 
+# Update transactions by customer (for consolidated sales)
+@app.route('/api/transactions/update-by-customer', methods=['PUT'])
+def update_transactions_by_customer():
+    conn = sqlite3.connect('inventory.db')
+    cursor = conn.cursor()
+    
+    data = request.get_json()
+    recipient_name = data.get('recipient_name')
+    recipient_phone = data.get('recipient_phone')
+    new_quantity = data.get('new_quantity')
+    recipient_photo = data.get('recipient_photo')
+    
+    try:
+        print(f'Updating transactions by customer: {recipient_name} ({recipient_phone}) to quantity: {new_quantity}')
+        
+        # Find all transactions for this customer (from today)
+        today = datetime.now().strftime('%Y-%m-%d')
+        cursor.execute('''
+            SELECT id, barcode, quantity FROM transactions 
+            WHERE recipient_name = ? AND recipient_phone = ? 
+            AND DATE(transaction_date) = DATE(?)
+            ORDER BY transaction_date DESC
+        ''', (recipient_name, recipient_phone, today))
+        
+        transactions = cursor.fetchall()
+        print(f'Found {len(transactions)} transactions to update')
+        
+        if not transactions:
+            conn.close()
+            return jsonify({'error': 'No transactions found for this customer today'}), 404
+        
+        # Update the first (most recent) transaction with the new quantity
+        transaction_id, barcode, old_quantity = transactions[0]
+        
+        # Get product price to calculate new total
+        cursor.execute('SELECT name, mrp FROM products WHERE barcode = ?', (barcode,))
+        product_result = cursor.fetchone()
+        product_name = product_result[0] if product_result else 'Unknown Product'
+        product_price = product_result[1] if product_result else 10.0
+        
+        # Calculate new total amount
+        new_total_amount = new_quantity * product_price
+        
+        # Create updated notes with new total
+        new_notes = f'Single item sale - Total: ₹{new_total_amount:.2f}'
+        
+        # Update the transaction
+        update_query = '''
+            UPDATE transactions 
+            SET quantity = ?, recipient_name = ?, recipient_phone = ?, notes = ?
+        '''
+        update_params = [new_quantity, recipient_name, recipient_phone, new_notes]
+        
+        if recipient_photo:
+            update_query += ', recipient_photo = ?'
+            update_params.append(recipient_photo)
+        
+        update_query += ' WHERE id = ?'
+        update_params.append(transaction_id)
+        
+        cursor.execute(update_query, update_params)
+        print(f'Updated transaction notes to: {new_notes}')
+        
+        # Update inventory to reflect the quantity change
+        quantity_difference = new_quantity - old_quantity
+        if quantity_difference != 0:
+            cursor.execute('''
+                UPDATE products 
+                SET quantity = quantity - ?
+                WHERE barcode = ?
+            ''', (quantity_difference, barcode))
+            print(f'Updated inventory for {barcode} by {-quantity_difference}')
+            print(f'New total amount: ₹{new_total_amount:.2f} (was ₹{old_quantity * product_price:.2f})')
+        
+        conn.commit()
+        conn.close()
+        
+        print(f'Successfully updated transaction {transaction_id} quantity from {old_quantity} to {new_quantity}')
+        return jsonify({
+            'Result': 'Transaction updated successfully',
+            'transaction_id': transaction_id,
+            'old_quantity': old_quantity,
+            'new_quantity': new_quantity,
+            'new_total_amount': new_total_amount
+        })
+        
+    except Exception as e:
+        conn.close()
+        print(f'Error updating transactions by customer: {str(e)}')
+        return jsonify({'error': str(e)}), 400
+
 @app.route('/api/cleanup-photos', methods=['POST'])
 def cleanup_photos():
     """Remove orphaned photo files that are no longer referenced in the database"""
