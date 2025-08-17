@@ -2144,6 +2144,17 @@ class _EditSalePageState extends State<EditSalePage> {
           // New item - create new transaction
           try {
             print('Creating new transaction for ${item.productName}');
+            // Determine appropriate notes to link this item to the original sale
+            String saleNotes;
+            if (_saleItems.length > 1) {
+              // Multi-item sale - use consistent multi-item sale notes
+              saleNotes = 'Multi-Item Sale';
+            } else {
+              // Single item sale - calculate total for single item notes
+              double totalAmount = item.quantity * item.mrp;
+              saleNotes = 'Single item sale - Total: ₹${totalAmount.toStringAsFixed(2)}';
+            }
+            
             final transaction = Transaction(
               barcode: item.barcode,
               transactionType: 'OUT',
@@ -2155,11 +2166,37 @@ class _EditSalePageState extends State<EditSalePage> {
                       ? _customerPhotosBase64.first 
                       : jsonEncode(_customerPhotosBase64))
                   : null,
-              notes: 'Added during edit',
+              notes: saleNotes,
             );
             
             await _inventoryController.addTransaction(transaction);
             print('Successfully added new transaction for ${item.productName}');
+            
+            // If this creates a multi-item sale, update existing transactions to have consistent notes
+            if (_saleItems.length > 1) {
+              for (var existingItem in _saleItems) {
+                if (existingItem.id != null && existingItem != item) {
+                  try {
+                    // Update existing transaction to have Multi-Item Sale notes
+                    await _inventoryController.updateTransactionSafe(
+                      existingItem.id!,
+                      recipientName: _selectedCustomerName!,
+                      recipientPhone: _selectedCustomerPhone ?? '',
+                      quantity: existingItem.quantity,
+                      recipientPhoto: _customerPhotosBase64.isNotEmpty 
+                          ? (_customerPhotosBase64.length == 1 
+                              ? _customerPhotosBase64.first 
+                              : jsonEncode(_customerPhotosBase64))
+                          : null,
+                    );
+                    print('Updated existing transaction ${existingItem.id} to Multi-Item Sale');
+                  } catch (e) {
+                    print('Warning: Could not update existing transaction ${existingItem.id}: $e');
+                    // Continue with other items - this is not critical
+                  }
+                }
+              }
+            }
           } catch (e) {
             print('Error adding new transaction for ${item.productName}: $e');
             throw Exception('Failed to add ${item.productName}: ${e.toString()}');

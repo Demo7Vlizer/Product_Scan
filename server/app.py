@@ -885,14 +885,28 @@ def bulk_update_transactions():
             
             if transaction_id:
                 # Try to update existing transaction
-                cursor.execute('SELECT id FROM transactions WHERE id = ?', (transaction_id,))
-                if cursor.fetchone():
+                cursor.execute('SELECT id, quantity FROM transactions WHERE id = ?', (transaction_id,))
+                result = cursor.fetchone()
+                if result:
+                    old_quantity = result[1]
+                    quantity_difference = quantity - old_quantity
+                    
                     cursor.execute('''
                         UPDATE transactions 
                         SET recipient_name = ?, recipient_phone = ?, quantity = ?
                         WHERE id = ?
                     ''', (recipient_name, recipient_phone, quantity, transaction_id))
-                    print(f'Updated existing transaction {transaction_id}')
+                    
+                    # Update inventory for the quantity change
+                    if quantity_difference != 0:
+                        cursor.execute('''
+                            UPDATE products 
+                            SET quantity = quantity - ?
+                            WHERE barcode = ?
+                        ''', (quantity_difference, barcode))
+                        print(f'Updated inventory for {barcode} by {-quantity_difference} (transaction {transaction_id})')
+                    
+                    print(f'Updated existing transaction {transaction_id} from {old_quantity} to {quantity}')
                 else:
                     print(f'Transaction {transaction_id} not found, will create new one')
                     transaction_id = None
@@ -901,10 +915,19 @@ def bulk_update_transactions():
                 # Create new transaction
                 cursor.execute('''
                     INSERT INTO transactions (barcode, transaction_type, quantity, recipient_name, recipient_phone, notes)
-                    VALUES (?, 'OUT', ?, ?, ?, 'Updated from edit')
+                    VALUES (?, 'OUT', ?, ?, ?, 'Added from edit')
                 ''', (barcode, quantity, recipient_name, recipient_phone))
                 new_id = cursor.lastrowid
-                print(f'Created new transaction {new_id} for {barcode}')
+                
+                # Update inventory for new transaction (reduce stock)
+                cursor.execute('''
+                    UPDATE products 
+                    SET quantity = quantity - ?
+                    WHERE barcode = ?
+                ''', (quantity, barcode))
+                
+                print(f'Created new transaction {new_id} for {barcode} with quantity {quantity}')
+                print(f'Reduced inventory for {barcode} by {quantity}')
         
         # Update photo for all transactions with this customer
         if recipient_photo:
@@ -988,8 +1011,8 @@ def update_transaction(transaction_id):
         print(f'Quantity: {quantity}')
         print(f'Phone: {recipient_phone}')
         
-        # First, check if transaction exists and get current photo path
-        cursor.execute('SELECT recipient_photo FROM transactions WHERE id = ?', (transaction_id,))
+        # First, check if transaction exists and get current data for inventory adjustment
+        cursor.execute('SELECT recipient_photo, quantity, barcode FROM transactions WHERE id = ?', (transaction_id,))
         result = cursor.fetchone()
         
         if not result:
@@ -999,8 +1022,9 @@ def update_transaction(transaction_id):
             # This handles cases where the transaction ID from consolidated view doesn't match actual IDs
             return jsonify({'error': f'Transaction with ID {transaction_id} not found. This might be from a consolidated sale view.'}), 404
             
-        old_photo_path = result[0] if result[0] else None
+        old_photo_path, old_quantity, barcode = result
         print(f'Old photo path: {old_photo_path}')
+        print(f'Old quantity: {old_quantity}, New quantity: {quantity}, Barcode: {barcode}')
         
         # Handle photo processing if provided
         new_photo_path = None
@@ -1085,6 +1109,27 @@ def update_transaction(transaction_id):
                     AND id != ?
                 ''', (new_photo_path, recipient_name, recipient_phone, transaction_date, transaction_date, transaction_id))
                 
+                # Also check if we need to update notes to "Multi-Item Sale" for all related transactions
+                cursor.execute('''
+                    SELECT COUNT(*) FROM transactions 
+                    WHERE recipient_name = ? AND recipient_phone = ? 
+                    AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
+                ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+                
+                transaction_count = cursor.fetchone()[0]
+                if transaction_count > 1:
+                    # Multi-item sale - update all transactions to have consistent notes
+                    cursor.execute('''
+                        UPDATE transactions 
+                        SET notes = 'Multi-Item Sale'
+                        WHERE recipient_name = ? AND recipient_phone = ? 
+                        AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
+                        AND notes != 'Multi-Item Sale'
+                    ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+                    updated_notes_count = cursor.rowcount
+                    if updated_notes_count > 0:
+                        print(f'Updated {updated_notes_count} transactions to Multi-Item Sale notes')
+                
                 updated_count = cursor.rowcount
                 if updated_count > 0:
                     print(f'Updated {updated_count} related transactions with new photo')
@@ -1093,16 +1138,53 @@ def update_transaction(transaction_id):
                 for trans_id, old_related_photo in related_transactions:
                     if old_related_photo and old_related_photo != new_photo_path:
                         safe_delete_photo(old_related_photo, trans_id)
+        
         else:
             cursor.execute('''
                 UPDATE transactions 
                 SET recipient_name = ?, recipient_phone = ?, quantity = ?
                 WHERE id = ?
             ''', (recipient_name, recipient_phone, quantity, transaction_id))
+            
+            # Check if we need to update notes to "Multi-Item Sale" for all related transactions
+            cursor.execute('SELECT transaction_date FROM transactions WHERE id = ?', (transaction_id,))
+            transaction_date_result = cursor.fetchone()
+            if transaction_date_result:
+                transaction_date = transaction_date_result[0]
+                
+                cursor.execute('''
+                    SELECT COUNT(*) FROM transactions 
+                    WHERE recipient_name = ? AND recipient_phone = ? 
+                    AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
+                ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+                
+                transaction_count = cursor.fetchone()[0]
+                if transaction_count > 1:
+                    # Multi-item sale - update all transactions to have consistent notes
+                    cursor.execute('''
+                        UPDATE transactions 
+                        SET notes = 'Multi-Item Sale'
+                        WHERE recipient_name = ? AND recipient_phone = ? 
+                        AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
+                        AND notes != 'Multi-Item Sale'
+                    ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+                    updated_notes_count = cursor.rowcount
+                    if updated_notes_count > 0:
+                        print(f'Updated {updated_notes_count} transactions to Multi-Item Sale notes (non-photo path)')
         
         if cursor.rowcount == 0:
             conn.close()
             return jsonify({'error': 'Transaction not found'}), 404
+        
+        # Update inventory to reflect the quantity change (only once, after both update paths)
+        quantity_difference = quantity - old_quantity
+        if quantity_difference != 0:
+            cursor.execute('''
+                UPDATE products 
+                SET quantity = quantity - ?
+                WHERE barcode = ?
+            ''', (quantity_difference, barcode))
+            print(f'📦 Updated inventory for {barcode} by {-quantity_difference} (quantity changed from {old_quantity} to {quantity})')
         
         conn.commit()
         
