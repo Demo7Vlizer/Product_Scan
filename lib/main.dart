@@ -51,7 +51,7 @@ class StockManagementApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       // App configuration
-      title: 'Eopy Stock Management',
+      title: 'BCS_SM',
       debugShowCheckedModeBanner: false,
       
       // Theme configuration
