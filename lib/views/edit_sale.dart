@@ -2124,23 +2124,10 @@ class _EditSalePageState extends State<EditSalePage> {
                 recipientPhoto: photosToSend,
               );
               
-              // Adjust inventory if quantity changed
+              // Note: Inventory adjustment is handled by the server-side API
+              // to prevent double-adjustment issues
               if (quantityDifference != 0) {
-                // Get current product to update inventory
-                final product = await _inventoryController.getProduct(item.barcode);
-                if (product != null) {
-                  // If quantity increased, we need to reduce inventory
-                  // If quantity decreased, we need to increase inventory
-                  int newInventoryQuantity = (product.quantity ?? 0) - quantityDifference;
-                  
-                  await _inventoryController.updateProductQuantity(
-                    item.barcode,
-                    newInventoryQuantity,
-                  );
-                  print('📦 Updated inventory for ${item.barcode}: ${product.quantity} -> $newInventoryQuantity');
-                } else {
-                  print('⚠️ Product ${item.barcode} not found for inventory update');
-                }
+                print('📦 Inventory adjustment will be handled by server for ${item.barcode} (change: ${quantityDifference > 0 ? '+' : ''}$quantityDifference)');
               }
               
               // Update the original quantity to reflect the saved state

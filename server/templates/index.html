@@ -1533,8 +1533,8 @@
                 console.log(`Showing photo ${currentPhotoIndex + 1}/${photos.length}:`, currentPhoto);
                 
                 // Set image source with cache busting
-                const cacheBuster = new Date().getTime();
-                img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
+                    const cacheBuster = new Date().getTime();
+                    img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
                 
                 // Update counter
                 if (photos.length > 1 && photoCounter) {

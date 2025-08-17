@@ -408,31 +408,23 @@ class _FindProductPageState extends State<FindProductPage>
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,
-                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
             ),
           ),
           
-          // Action button
+          // Simple action button
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue.shade400, Colors.purple.shade500],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.grey.shade300,
+                width: 1,
               ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.shade200,
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
             ),
             child: Material(
               color: Colors.transparent,
@@ -441,11 +433,11 @@ class _FindProductPageState extends State<FindProductPage>
                   // Quick add functionality
                   _tabController.animateTo(0);
                 },
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 child: Icon(
                   Icons.add_location_alt,
-                  color: Colors.white,
-                  size: 22,
+                  color: Colors.grey.shade600,
+                  size: 20,
                 ),
               ),
             ),
@@ -458,36 +450,26 @@ class _FindProductPageState extends State<FindProductPage>
   Widget _buildEnhancedTabBar() {
     return Container(
       margin: EdgeInsets.all(20),
-      padding: EdgeInsets.all(4),
+      padding: EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 1,
+        ),
       ),
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blue.shade400, Colors.purple.shade500],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: Colors.grey.shade400,
+            width: 1,
           ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.blue.shade200,
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
         ),
-        labelColor: Colors.white,
+        labelColor: Colors.grey.shade800,
         unselectedLabelColor: Colors.grey.shade600,
         labelStyle: TextStyle(
           fontWeight: FontWeight.w600,
@@ -502,8 +484,8 @@ class _FindProductPageState extends State<FindProductPage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.add_photo_alternate, size: 18),
-                SizedBox(width: 6),
+                Icon(Icons.add, size: 16),
+                SizedBox(width: 4),
                 Text('Add'),
               ],
             ),
@@ -512,8 +494,8 @@ class _FindProductPageState extends State<FindProductPage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.search_rounded, size: 18),
-                SizedBox(width: 6),
+                Icon(Icons.search, size: 16),
+                SizedBox(width: 4),
                 Text('Search'),
               ],
             ),
@@ -522,8 +504,8 @@ class _FindProductPageState extends State<FindProductPage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.photo_library_outlined, size: 18),
-                SizedBox(width: 6),
+                Icon(Icons.list, size: 16),
+                SizedBox(width: 4),
                 Text('Browse'),
               ],
             ),
@@ -539,54 +521,37 @@ class _FindProductPageState extends State<FindProductPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Hero section
+          // Simple hero section
           Container(
             width: double.infinity,
             padding: EdgeInsets.all(24),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.teal.shade400.withOpacity(0.1),
-                  Colors.green.shade400.withOpacity(0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.3)),
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(
               children: [
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.teal.shade400, Colors.green.shade500],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.teal.shade200,
-                        blurRadius: 15,
-                        offset: Offset(0, 5),
-                      ),
-                    ],
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: Icon(
                     Icons.add_location_alt,
-                    color: Colors.white,
-                    size: 40,
+                    color: Colors.grey.shade600,
+                    size: 32,
                   ),
                 ),
                 SizedBox(height: 16),
                 Text(
                   'Add New Location',
                   style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
                     color: Colors.grey.shade800,
                   ),
                 ),
@@ -594,9 +559,8 @@ class _FindProductPageState extends State<FindProductPage>
                 Text(
                   'Capture where your products are stored',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     color: Colors.grey.shade600,
-                    height: 1.4,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -606,20 +570,12 @@ class _FindProductPageState extends State<FindProductPage>
           
           SizedBox(height: 24),
           
-          // Form card with glassmorphism
+          // Simple form card
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.shade200,
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
-                  spreadRadius: -5,
-                ),
-              ],
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -704,35 +660,25 @@ class _FindProductPageState extends State<FindProductPage>
                             ),
                           ] else ...[
                             Container(
-                              width: 100,
-                              height: 100,
+                              width: 80,
+                              height: 80,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [Colors.blue.shade400, Colors.purple.shade500],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.blue.shade200,
-                                    blurRadius: 15,
-                                    offset: Offset(0, 5),
-                                  ),
-                                ],
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
                               ),
                               child: Icon(
                                 Icons.add_a_photo,
-                                size: 50,
-                                color: Colors.white,
+                                size: 36,
+                                color: Colors.grey.shade600,
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
                             Text(
                               'Add Location Photos',
                               style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.grey.shade800,
                               ),
                             ),
@@ -742,7 +688,6 @@ class _FindProductPageState extends State<FindProductPage>
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey.shade600,
-                                height: 1.5,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -762,38 +707,31 @@ class _FindProductPageState extends State<FindProductPage>
                   
                   const SizedBox(height: 32),
                   
-                  // Enhanced Save Button
+                  // Simple Save Button
                   Container(
                     width: double.infinity,
-                    height: 60,
+                    height: 56,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.teal.shade400, Colors.green.shade500],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                      color: Colors.grey.shade800,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.grey.shade700,
+                        width: 1,
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.teal.shade200,
-                          blurRadius: 15,
-                          offset: Offset(0, 5),
-                        ),
-                      ],
                     ),
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: _isAddingLocation ? null : _addLocation,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(8),
                         child: Center(
                           child: _isAddingLocation
                               ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
-                                      width: 24,
-                                      height: 24,
+                                      width: 20,
+                                      height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
                                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -804,7 +742,7 @@ class _FindProductPageState extends State<FindProductPage>
                                       'Saving Location...',
                                       style: TextStyle(
                                         fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w500,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -813,24 +751,17 @@ class _FindProductPageState extends State<FindProductPage>
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Container(
-                                      padding: EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.save,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
+                                    Icon(
+                                      Icons.save,
+                                      color: Colors.white,
+                                      size: 18,
                                     ),
-                                    SizedBox(width: 12),
+                                    SizedBox(width: 8),
                                     Text(
                                       'Save Location',
                                       style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -1392,67 +1323,53 @@ class _FindProductPageState extends State<FindProductPage>
                          children: [
                            // Edit button
                            Container(
-                             width: 36,
-                             height: 36,
+                             width: 32,
+                             height: 32,
                              decoration: BoxDecoration(
-                               gradient: LinearGradient(
-                                 colors: [Colors.orange.shade400, Colors.red.shade500],
-                                 begin: Alignment.topLeft,
-                                 end: Alignment.bottomRight,
+                               color: Colors.white,
+                               borderRadius: BorderRadius.circular(6),
+                               border: Border.all(
+                                 color: Colors.grey.shade400,
+                                 width: 1,
                                ),
-                               borderRadius: BorderRadius.circular(18),
-                               boxShadow: [
-                                 BoxShadow(
-                                   color: Colors.black26,
-                                   blurRadius: 4,
-                                   offset: Offset(0, 2),
-                                 ),
-                               ],
                              ),
                              child: Material(
                                color: Colors.transparent,
                                child: InkWell(
                                  onTap: () => _showEditLocationDialog(location),
-                                 borderRadius: BorderRadius.circular(18),
+                                 borderRadius: BorderRadius.circular(6),
                                  child: Icon(
                                    Icons.edit,
-                                   color: Colors.white,
-                                   size: 18,
+                                   color: Colors.grey.shade600,
+                                   size: 16,
                                  ),
                                ),
                              ),
                            ),
                            
-                           SizedBox(width: 8),
+                           SizedBox(width: 6),
                            
                            // View button
                            Container(
-                             width: 36,
-                             height: 36,
+                             width: 32,
+                             height: 32,
                              decoration: BoxDecoration(
-                               gradient: LinearGradient(
-                                 colors: [Colors.blue.shade400, Colors.purple.shade500],
-                                 begin: Alignment.topLeft,
-                                 end: Alignment.bottomRight,
+                               color: Colors.grey.shade800,
+                               borderRadius: BorderRadius.circular(6),
+                               border: Border.all(
+                                 color: Colors.grey.shade700,
+                                 width: 1,
                                ),
-                               borderRadius: BorderRadius.circular(18),
-                               boxShadow: [
-                                 BoxShadow(
-                                   color: Colors.black26,
-                                   blurRadius: 4,
-                                   offset: Offset(0, 2),
-                                 ),
-                               ],
                              ),
                              child: Material(
                                color: Colors.transparent,
                                child: InkWell(
                                  onTap: () => _showLocationDetails(location),
-                                 borderRadius: BorderRadius.circular(18),
+                                 borderRadius: BorderRadius.circular(6),
                                  child: Icon(
                                    Icons.visibility,
                                    color: Colors.white,
-                                   size: 18,
+                                   size: 16,
                                  ),
                                ),
                              ),
@@ -1480,14 +1397,14 @@ class _FindProductPageState extends State<FindProductPage>
                 
                 Row(
                   children: [
-                    Icon(Icons.place, size: 16, color: Colors.blue.shade600),
+                    Icon(Icons.place, size: 16, color: Colors.grey.shade600),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         location.locationName ?? 'Unknown Location',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.blue.shade600,
+                          color: Colors.grey.shade600,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1778,21 +1695,14 @@ class _FindProductPageState extends State<FindProductPage>
     required String label,
     required String hint,
     required IconData icon,
-    required Color iconColor,
+    required Color iconColor, // We'll ignore this for minimalistic design
     int maxLines = 1,
   }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: TextField(
         controller: controller,
@@ -1800,7 +1710,7 @@ class _FindProductPageState extends State<FindProductPage>
         style: TextStyle(
           fontSize: 16,
           color: Colors.grey.shade800,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
         ),
         decoration: InputDecoration(
           labelText: label,
@@ -1808,41 +1718,32 @@ class _FindProductPageState extends State<FindProductPage>
           labelStyle: TextStyle(
             color: Colors.grey.shade600,
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
           ),
           hintStyle: TextStyle(
             color: Colors.grey.shade400,
             fontSize: 14,
           ),
-          prefixIcon: Container(
-            margin: EdgeInsets.all(12),
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 20,
-            ),
+          prefixIcon: Icon(
+            icon,
+            color: Colors.grey.shade600,
+            size: 20,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: iconColor, width: 2),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade600, width: 1),
           ),
           filled: true,
           fillColor: Colors.transparent,
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
     );
@@ -1852,53 +1753,39 @@ class _FindProductPageState extends State<FindProductPage>
     required VoidCallback onPressed,
     required IconData icon,
     required String label,
-    required List<Color> gradient,
+    required List<Color> gradient, // We'll ignore this for minimalistic design
     bool isLarge = false,
   }) {
     return Container(
       height: isLarge ? 50 : 44,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: Colors.grey.shade800,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey.shade700,
+          width: 1,
         ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.3),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           child: Center(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: EdgeInsets.all(isLarge ? 6 : 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: Colors.white,
-                    size: isLarge ? 20 : 16,
-                  ),
+                Icon(
+                  icon,
+                  color: Colors.white,
+                  size: isLarge ? 18 : 16,
                 ),
                 SizedBox(width: 8),
                 Text(
                   label,
                   style: TextStyle(
                     fontSize: isLarge ? 16 : 14,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     color: Colors.white,
                   ),
                 ),
