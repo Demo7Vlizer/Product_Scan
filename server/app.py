@@ -2277,14 +2277,14 @@ def process_and_save_image(base64_data, filename, folder_path, compress=True):
                 # Re-open for processing (verify() closes the image)
                 image_bytes = base64.b64decode(base64_data)
                 
-                # Apply maximum compression to save space
-                print(f"Compressing image ({original_size_kb:.1f}KB) to save space...")
+                # Apply minimal compression to keep text very clear
+                print(f"Compressing image ({original_size_kb:.1f}KB) with minimal compression for text clarity...")
                 image_bytes = compress_image(
                     image_bytes, 
-                    max_size_kb=25,      # Even smaller target size
-                    quality=35,          # Much lower quality for maximum compression
-                    max_width=300,       # Even smaller dimensions
-                    max_height=300
+                    max_size_kb=150,     # Larger target size for excellent quality
+                    quality=80,          # Much higher quality for clear text
+                    max_width=1000,      # Larger dimensions for excellent text clarity
+                    max_height=1000
                 )
                 
                 compressed_size_kb = len(image_bytes) / 1024

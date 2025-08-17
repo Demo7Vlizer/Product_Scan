@@ -51,13 +51,13 @@ class _AddProductPageState extends State<AddProductPage> {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
       final String targetPath = '${tempDir.path}/$fileName';
       
-      // Compress image with maximum compression settings
+      // Compress image with maximum text clarity for product images
       final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
         imageFile.absolute.path,
         targetPath,
-        minWidth: 400,        // Further reduced for maximum compression
-        minHeight: 400,       // Further reduced for maximum compression
-        quality: 40,          // Much lower quality for maximum compression
+        minWidth: 1200,       // Larger dimensions for maximum text clarity
+        minHeight: 1200,      // Larger dimensions for maximum text clarity
+        quality: 92,          // Very high quality for crystal clear text
         rotate: 0,
         format: CompressFormat.jpeg,
       );
@@ -88,9 +88,9 @@ class _AddProductPageState extends State<AddProductPage> {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 400,          // Maximum compression - smaller initial size
-        maxHeight: 400,         // Maximum compression - smaller initial size
-        imageQuality: 40,       // Much lower quality for maximum compression
+        maxWidth: 1600,         // High resolution for clear text capture
+        maxHeight: 1600,        // High resolution for clear text capture
+        imageQuality: 95,       // Very high initial quality for text clarity
       );
 
       if (image != null) {
@@ -131,6 +131,122 @@ class _AddProductPageState extends State<AddProductPage> {
         );
       }
     }
+  }
+
+  void _showZoomableImage() {
+    if (_imageFile == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.all(20),
+          child: Stack(
+            children: [
+              // Zoomable image with InteractiveViewer
+              Center(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.9,
+                    maxWidth: MediaQuery.of(context).size.width * 0.9,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black54,
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: InteractiveViewer(
+                      panEnabled: true, // Allow panning
+                      scaleEnabled: true, // Allow zooming
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: Image.file(
+                        _imageFile!,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey.shade200,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.error, color: Colors.red, size: 48),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Image Error',
+                                    style: TextStyle(color: Colors.red, fontSize: 16),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 40,
+                right: 40,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context),
+                      borderRadius: BorderRadius.circular(22),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Instructions text
+              Positioned(
+                bottom: 60,
+                left: 0,
+                right: 0,
+                child: Container(
+                  margin: EdgeInsets.symmetric(horizontal: 40),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Pinch to zoom • Drag to pan',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _saveProduct() async {
@@ -432,7 +548,7 @@ class _AddProductPageState extends State<AddProductPage> {
               SizedBox(height: 8),
 
               GestureDetector(
-                onTap: _pickImage,
+                onTap: _imageFile == null ? _pickImage : null,
                 child: Container(
                   width: double.infinity,
                   height: 180,
@@ -442,27 +558,81 @@ class _AddProductPageState extends State<AddProductPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: _imageFile != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            _imageFile!, 
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              print('❌ Error displaying picked image file: $error');
-                              return Container(
-                                color: Colors.red.shade100,
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.error, color: Colors.red),
-                                      Text('Image Error', style: TextStyle(color: Colors.red)),
-                                    ],
+                      ? Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                _imageFile!, 
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (context, error, stackTrace) {
+                                  print('❌ Error displaying picked image file: $error');
+                                  return Container(
+                                    color: Colors.red.shade100,
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.error, color: Colors.red),
+                                          Text('Image Error', style: TextStyle(color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            // View icon for zooming
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.visibility,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => _showZoomableImage(),
+                                  padding: EdgeInsets.all(8),
+                                  constraints: BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                            // Camera icon for retaking photo
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.camera_alt,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  onPressed: _pickImage,
+                                  padding: EdgeInsets.all(8),
+                                  constraints: BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         )
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,

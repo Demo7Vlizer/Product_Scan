@@ -107,13 +107,13 @@ class _FindProductPageState extends State<FindProductPage>
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
       final String targetPath = '${tempDir.path}/$fileName';
       
-      // Compress image with aggressive settings
+      // Compress image with minimal compression for excellent text clarity
       final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
         imageFile.absolute.path,
         targetPath,
-        minWidth: 600,        // Reduced from 1200
-        minHeight: 600,       // Reduced from 1200
-        quality: 60,          // Reduced from 85 for smaller size
+        minWidth: 900,        // Much larger for excellent text clarity
+        minHeight: 900,       // Much larger for excellent text clarity
+        quality: 85,          // High quality for very clear text
         rotate: 0,
         format: CompressFormat.jpeg,
       );
@@ -2183,13 +2183,13 @@ class _EditLocationDialogState extends State<EditLocationDialog> {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}_edit_compressed.jpg';
       final String targetPath = '${tempDir.path}/$fileName';
       
-      // Compress image with aggressive settings
+      // Compress image with minimal compression for excellent text clarity
       final XFile? compressedFile = await FlutterImageCompress.compressAndGetFile(
         imageFile.absolute.path,
         targetPath,
-        minWidth: 600,        // Smaller size for uploads
-        minHeight: 600,       // Smaller size for uploads
-        quality: 60,          // Lower quality for smaller files
+        minWidth: 900,        // Much larger for excellent text clarity
+        minHeight: 900,       // Much larger for excellent text clarity
+        quality: 85,          // High quality for very clear text
         rotate: 0,
         format: CompressFormat.jpeg,
       );
