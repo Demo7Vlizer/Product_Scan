@@ -1244,11 +1244,11 @@
                         </div>
                         
                         <!-- Customer Info -->
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 10px 0;" data-customer-name="${sale.customer_name}" data-customer-phone="${sale.customer_phone || ''}">
                             <div class="product-details" style="margin-bottom: 8px;">
                                 <i class="fas fa-user" style="color: #667eea;"></i> 
                                 <strong>Customer:</strong> ${sale.customer_name}
-                                ${sale.recipient_photo ? '<i class="fas fa-camera view-photo-btn" style="color: #28a745; margin-left: 10px; cursor: pointer;" title="Click to view photo" onclick="viewCustomerPhoto(\'' + sale.recipient_photo + '\', \'' + sale.customer_name + '\')"></i>' : ''}
+                                ${sale.recipient_photo ? '<i class="fas fa-camera view-photo-btn" style="color: #28a745; margin-left: 10px; cursor: pointer;" title="Click to view photos" onclick="viewCustomerPhoto(null, \'' + sale.customer_name + '\')"></i>' : ''}
                             </div>
                             ${sale.customer_phone ? `<div class="product-details"><i class="fas fa-phone" style="color: #667eea;"></i> <strong>Phone:</strong> ${sale.customer_phone}</div>` : ''}
                         </div>
@@ -1305,30 +1305,67 @@
             return 'quantity-high';
         }
 
-        // View customer photo(s) - supports both single photo and multiple photos
-        function viewCustomerPhoto(photoPath, customerName) {
-            console.log('viewCustomerPhoto called with:', { photoPath, customerName });
+        // View customer photo(s) - NEW SIMPLE VERSION
+        async function viewCustomerPhoto(photoPath, customerName) {
+            console.log('🔍 viewCustomerPhoto called for:', customerName);
             
-            if (!photoPath) {
-                console.error('No photo path provided');
-                return;
-            }
-            
-            // Parse photos - could be single photo or JSON array
-            let photos = [];
+            // Get customer phone from the current page data
+            let customerPhone = '';
             try {
-                // Try to parse as JSON array first
-                photos = JSON.parse(photoPath);
-                if (!Array.isArray(photos)) {
-                    photos = [photoPath]; // Single photo
+                // Find the customer phone from the current sales data
+                const salesData = document.querySelectorAll('[data-customer-name]');
+                for (let elem of salesData) {
+                    if (elem.dataset.customerName === customerName) {
+                        customerPhone = elem.dataset.customerPhone || '';
+                        break;
+                    }
                 }
-                console.log('Parsed photos as JSON array:', photos);
+                
+                // If not found, try to extract from the page content
+                if (!customerPhone) {
+                    const phoneElements = document.querySelectorAll('.product-details');
+                    for (let elem of phoneElements) {
+                        if (elem.textContent.includes('Phone:') && elem.textContent.includes(customerName)) {
+                            const phoneMatch = elem.textContent.match(/Phone:\s*([\d\s\+\(\)\-]+)/);
+                            if (phoneMatch) {
+                                customerPhone = phoneMatch[1].trim();
+                                break;
+                            }
+                        }
+                    }
+                }
             } catch (e) {
-                // Not JSON, treat as single photo
-                photos = [photoPath];
-                console.log('Treated as single photo:', photos);
+                console.log('Could not find phone number, using empty string');
             }
             
+            console.log('📱 Customer phone found:', customerPhone);
+            
+            // Get photos from our new API endpoint
+            try {
+                const response = await fetch(`/api/customer-photos/${encodeURIComponent(customerName)}/${encodeURIComponent(customerPhone)}`);
+                const data = await response.json();
+                
+                console.log('📸 API Response:', data);
+                
+                if (!data.success || data.photos.length === 0) {
+                    alert(`No photos found for ${customerName}`);
+                    return;
+                }
+                
+                const photos = data.photos;
+                console.log(`✅ Found ${photos.length} photos:`, photos);
+                
+                // Show the photo viewer
+                showPhotoViewer(photos, customerName);
+                
+            } catch (error) {
+                console.error('❌ Error loading photos:', error);
+                alert('Error loading photos. Please try again.');
+            }
+        }
+        
+        // Show photo viewer modal
+        function showPhotoViewer(photos, customerName) {
             let currentPhotoIndex = 0;
             
             // Create modal
@@ -1391,48 +1428,40 @@
                 align-items: center;
             `;
             
-            // Create navigation buttons (only if multiple photos)
+            // Navigation buttons and counter for multiple photos
             let prevBtn, nextBtn, photoCounter;
             if (photos.length > 1) {
                 prevBtn = document.createElement('button');
                 prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
                 prevBtn.style.cssText = `
-                    background: none;
+                    background: rgba(255,255,255,0.2);
                     border: none;
                     color: white;
-                    font-size: 18px;
+                    padding: 8px 12px;
+                    border-radius: 6px;
                     cursor: pointer;
-                    padding: 8px;
-                    border-radius: 50%;
-                    transition: background 0.3s;
+                    font-size: 14px;
                 `;
-                prevBtn.title = 'Previous photo';
-                prevBtn.onmouseover = () => prevBtn.style.background = 'rgba(255,255,255,0.2)';
-                prevBtn.onmouseout = () => prevBtn.style.background = 'none';
                 
                 nextBtn = document.createElement('button');
                 nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
                 nextBtn.style.cssText = `
-                    background: none;
+                    background: rgba(255,255,255,0.2);
                     border: none;
                     color: white;
-                    font-size: 18px;
+                    padding: 8px 12px;
+                    border-radius: 6px;
                     cursor: pointer;
-                    padding: 8px;
-                    border-radius: 50%;
-                    transition: background 0.3s;
+                    font-size: 14px;
                 `;
-                nextBtn.title = 'Next photo';
-                nextBtn.onmouseover = () => nextBtn.style.background = 'rgba(255,255,255,0.2)';
-                nextBtn.onmouseout = () => nextBtn.style.background = 'none';
                 
-                photoCounter = document.createElement('span');
+                photoCounter = document.createElement('div');
                 photoCounter.style.cssText = `
                     background: rgba(255,255,255,0.2);
-                    padding: 4px 12px;
-                    border-radius: 15px;
-                    font-size: 14px;
-                    font-weight: 500;
+                    padding: 6px 12px;
+                    border-radius: 12px;
+                    font-size: 13px;
+                    font-weight: bold;
                 `;
                 
                 buttonContainer.appendChild(prevBtn);
@@ -1440,43 +1469,37 @@
                 buttonContainer.appendChild(nextBtn);
             }
             
-            // Create fullscreen button
+            // Fullscreen button
             const fullscreenBtn = document.createElement('button');
             fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
             fullscreenBtn.style.cssText = `
-                background: none;
+                background: rgba(255,255,255,0.2);
                 border: none;
                 color: white;
-                font-size: 18px;
+                padding: 8px 10px;
+                border-radius: 6px;
                 cursor: pointer;
-                padding: 8px;
-                border-radius: 50%;
-                transition: background 0.3s;
+                font-size: 14px;
+                margin-right: 8px;
             `;
             fullscreenBtn.title = 'View in fullscreen';
-            fullscreenBtn.onmouseover = () => fullscreenBtn.style.background = 'rgba(255,255,255,0.2)';
-            fullscreenBtn.onmouseout = () => fullscreenBtn.style.background = 'none';
             
+            // Close button
             const closeBtn = document.createElement('button');
             closeBtn.innerHTML = '<i class="fas fa-times"></i>';
             closeBtn.style.cssText = `
-                background: none;
+                background: rgba(255,255,255,0.2);
                 border: none;
                 color: white;
-                font-size: 20px;
+                padding: 8px 10px;
+                border-radius: 6px;
                 cursor: pointer;
-                padding: 8px;
-                border-radius: 50%;
-                transition: background 0.3s;
+                font-size: 14px;
             `;
             closeBtn.title = 'Close';
-            closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.2)';
-            closeBtn.onmouseout = () => closeBtn.style.background = 'none';
-            closeBtn.onclick = () => document.body.removeChild(modal);
             
             buttonContainer.appendChild(fullscreenBtn);
             buttonContainer.appendChild(closeBtn);
-            
             header.appendChild(headerContent);
             header.appendChild(buttonContainer);
             
@@ -1485,47 +1508,35 @@
             imageContainer.style.cssText = `
                 padding: 20px;
                 text-align: center;
-                max-height: 70vh;
-                overflow: hidden;
+                background: white;
+                border-radius: 0 0 20px 20px;
             `;
             
-            // Create image element
             const img = document.createElement('img');
             img.style.cssText = `
                 max-width: 100%;
-                max-height: 100%;
+                max-height: 60vh;
+                object-fit: contain;
                 border-radius: 10px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-                transition: opacity 0.3s ease;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             `;
             
-            // Function to update the displayed image
-            function updateDisplayedImage() {
+            imageContainer.appendChild(img);
+            modalContent.appendChild(header);
+            modalContent.appendChild(imageContainer);
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+            
+            // Function to update displayed photo
+            function updatePhoto() {
                 const currentPhoto = photos[currentPhotoIndex];
-                console.log('updateDisplayedImage - currentPhoto:', currentPhoto);
+                console.log(`Showing photo ${currentPhotoIndex + 1}/${photos.length}:`, currentPhoto);
                 
-                // Handle different image sources
-                if (currentPhoto.startsWith('data:image')) {
-                    img.src = currentPhoto;
-                    console.log('Using base64 data image');
-                } else {
-                    // Add cache-busting parameter to prevent caching issues
-                    const cacheBuster = new Date().getTime();
-                    
-                    // Handle photo paths that already include the folder structure
-                    if (currentPhoto.startsWith('customer_photos/')) {
-                        // Extract just the filename from the path
-                        const filename = currentPhoto.replace('customer_photos/', '');
-                        img.src = `/uploads/customer_photos/${filename}?t=${cacheBuster}`;
-                        console.log('Using customer_photos path - filename:', filename, 'final URL:', img.src);
-                    } else {
-                        // Fallback for other formats
-                    img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
-                        console.log('Using fallback path - final URL:', img.src);
-                    }
-                }
+                // Set image source with cache busting
+                const cacheBuster = new Date().getTime();
+                img.src = `/uploads/${currentPhoto}?t=${cacheBuster}`;
                 
-                // Update photo counter if multiple photos
+                // Update counter
                 if (photos.length > 1 && photoCounter) {
                     photoCounter.textContent = `${currentPhotoIndex + 1} / ${photos.length}`;
                     
@@ -1537,66 +1548,43 @@
                 }
             }
             
-            // Set up navigation event handlers
+            // Navigation handlers
             if (photos.length > 1) {
-                prevBtn.onclick = () => {
+                prevBtn.onclick = (e) => {
+                    e.stopPropagation();
                     if (currentPhotoIndex > 0) {
                         currentPhotoIndex--;
-                        updateDisplayedImage();
+                        updatePhoto();
                     }
                 };
                 
-                nextBtn.onclick = () => {
+                nextBtn.onclick = (e) => {
+                    e.stopPropagation();
                     if (currentPhotoIndex < photos.length - 1) {
                         currentPhotoIndex++;
-                        updateDisplayedImage();
+                        updatePhoto();
                     }
                 };
                 
                 // Keyboard navigation
-                document.addEventListener('keydown', function handleKeydown(e) {
+                document.addEventListener('keydown', function handleKeyPress(e) {
                     if (e.key === 'ArrowLeft' && currentPhotoIndex > 0) {
                         currentPhotoIndex--;
-                        updateDisplayedImage();
+                        updatePhoto();
                     } else if (e.key === 'ArrowRight' && currentPhotoIndex < photos.length - 1) {
                         currentPhotoIndex++;
-                        updateDisplayedImage();
+                        updatePhoto();
                     } else if (e.key === 'Escape') {
-                        document.body.removeChild(modal);
-                        document.removeEventListener('keydown', handleKeydown);
+                        modal.remove();
+                        document.removeEventListener('keydown', handleKeyPress);
                     }
                 });
-                
-                // Clean up event listener when modal is closed
-                const originalClose = closeBtn.onclick;
-                closeBtn.onclick = () => {
-                    document.removeEventListener('keydown', handleKeydown);
-                    originalClose();
-                };
             }
             
-            // Initialize the first image
-            updateDisplayedImage();
-            
-            img.onerror = () => {
-                const currentPhoto = photos[currentPhotoIndex];
-                console.error('Failed to load image:', currentPhoto);
-                console.error('Attempted URL:', img.src);
-                
-                imageContainer.innerHTML = `
-                    <div style="padding: 40px; text-align: center; color: #666;">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: #ff6b6b;"></i>
-                        <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">Failed to load image</div>
-                        <div style="font-size: 14px;">The photo could not be displayed</div>
-                        <div style="font-size: 12px; margin-top: 10px; color: #999;">Photo path: ${currentPhoto}</div>
-                        <div style="font-size: 12px; color: #999;">URL attempted: ${img.src}</div>
-                    </div>
-                `;
-            };
-            
-            // Add fullscreen functionality
+            // Fullscreen functionality
             let isFullscreen = false;
-            fullscreenBtn.onclick = () => {
+            fullscreenBtn.onclick = (e) => {
+                e.stopPropagation();
                 if (!isFullscreen) {
                     // Enter fullscreen mode
                     modal.style.cssText = `
@@ -1690,7 +1678,6 @@
                         position: relative;
                         cursor: default;
                         box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-                        display: block;
                     `;
                     
                     header.style.cssText = `
@@ -1701,21 +1688,21 @@
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
-                        position: relative;
                     `;
                     
                     imageContainer.style.cssText = `
                         padding: 20px;
                         text-align: center;
-                        max-height: 70vh;
-                        overflow: hidden;
+                        background: white;
+                        border-radius: 0 0 20px 20px;
                     `;
                     
                     img.style.cssText = `
                         max-width: 100%;
-                        max-height: 100%;
+                        max-height: 60vh;
+                        object-fit: contain;
                         border-radius: 10px;
-                        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
                     `;
                     
                     fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
@@ -1724,49 +1711,17 @@
                 }
             };
             
-            imageContainer.appendChild(img);
-            modalContent.appendChild(header);
-            modalContent.appendChild(imageContainer);
-            modal.appendChild(modalContent);
-            
-            // Close modal when clicking outside
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    document.body.removeChild(modal);
-                }
+            // Close handlers
+            closeBtn.onclick = (e) => {
+                e.stopPropagation();
+                modal.remove();
             };
             
-            // Prevent closing when clicking modal content
+            modal.onclick = () => modal.remove();
             modalContent.onclick = (e) => e.stopPropagation();
             
-            // Add keyboard support
-            const handleKeyPress = (e) => {
-                if (e.key === 'Escape') {
-                    document.body.removeChild(modal);
-                    document.removeEventListener('keydown', handleKeyPress);
-                } else if (e.key === 'f' || e.key === 'F') {
-                    fullscreenBtn.click();
-                }
-            };
-            
-            document.addEventListener('keydown', handleKeyPress);
-            
-            // Clean up event listener when modal is closed
-            const originalRemoveChild = document.body.removeChild;
-            const removeModal = () => {
-                document.removeEventListener('keydown', handleKeyPress);
-                originalRemoveChild.call(document.body, modal);
-            };
-            
-            // Update close button to use the new remove function
-            closeBtn.onclick = removeModal;
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    removeModal();
-                }
-            };
-            
-            document.body.appendChild(modal);
+            // Show first photo
+            updatePhoto();
         }
 
         // Force refresh photos (clears all image caches)
@@ -1861,7 +1816,7 @@
             }
         }
         
-        // Load product locations
+        // Load product locationsa
         async function loadProductLocations(page = 1) {
             const grid = document.getElementById('locationGrid');
             const pagination = document.getElementById('locationPagination');

@@ -697,6 +697,36 @@ def get_transactions():
     
     return jsonify({'Result': transaction_list})
 
+def get_customer_photos_from_filesystem(customer_name, customer_phone):
+    """Get all photos for a customer from the filesystem"""
+    import os
+    import glob
+    
+    try:
+        customer_key = f"{customer_name}_{customer_phone}".replace(' ', '_').replace('+', '').replace('(', '').replace(')', '')
+        photos_folder = app.config['CUSTOMER_PHOTOS_FOLDER']
+        
+        # Look for all photos matching this customer
+        pattern = os.path.join(photos_folder, f"customer_{customer_key}_*.jpg")
+        photo_files = glob.glob(pattern)
+        
+        if photo_files:
+            # Convert to relative paths for the API
+            relative_paths = []
+            for file_path in sorted(photo_files):  # Sort to maintain order
+                filename = os.path.basename(file_path)
+                relative_paths.append(f"customer_photos/{filename}")
+            
+            print(f"📸 Found {len(relative_paths)} photos for {customer_name}: {relative_paths}")
+            return relative_paths
+        else:
+            print(f"📸 No photos found for {customer_name} (pattern: {pattern})")
+            return []
+            
+    except Exception as e:
+        print(f"❌ Error getting photos for {customer_name}: {e}")
+        return []
+
 @app.route('/api/transactions/grouped', methods=['GET'])
 def get_grouped_transactions():
     """Get transactions grouped by customer, date, and notes (for multi-item sales)"""
@@ -734,30 +764,53 @@ def get_grouped_transactions():
                 'is_multi_item': False
             }
 
-        # Choose the best/most recent photo for the group
+        # Collect ALL photos for the group (preserve multiple photos)
         try:
             current_photo = grouped_sales[group_key]['recipient_photo'] or ''
             new_photo = trans[6] or ''
+            
             if new_photo:
-                def is_filename(photo: str) -> bool:
-                    return not photo.startswith('data:image') and photo.endswith('.jpg')
-
-                # Replacement rules:
-                # - Prefer filename (server-saved) over base64
-                # - If both filenames, prefer lexicographically larger (contains timestamp)
-                # - If current empty, take new
-                should_replace = False
-                if not current_photo:
-                    should_replace = True
-                elif is_filename(new_photo) and not is_filename(current_photo):
-                    should_replace = True
-                elif is_filename(new_photo) and is_filename(current_photo):
-                    if new_photo > current_photo:
-                        should_replace = True
-
-                if should_replace:
-                    grouped_sales[group_key]['recipient_photo'] = new_photo
-        except Exception:
+                # Parse existing photos
+                existing_photos = set()
+                if current_photo:
+                    try:
+                        # Try to parse as JSON array
+                        parsed_current = json.loads(current_photo)
+                        if isinstance(parsed_current, list):
+                            existing_photos.update(parsed_current)
+                        else:
+                            existing_photos.add(current_photo)
+                    except (json.JSONDecodeError, TypeError):
+                        # Not JSON, treat as single photo
+                        existing_photos.add(current_photo)
+                
+                # Parse new photos
+                new_photos = set()
+                try:
+                    # Try to parse as JSON array
+                    parsed_new = json.loads(new_photo)
+                    if isinstance(parsed_new, list):
+                        new_photos.update(parsed_new)
+                    else:
+                        new_photos.add(new_photo)
+                except (json.JSONDecodeError, TypeError):
+                    # Not JSON, treat as single photo
+                    new_photos.add(new_photo)
+                
+                # Combine all photos (remove duplicates)
+                all_photos = list(existing_photos.union(new_photos))
+                all_photos = [p for p in all_photos if p]  # Remove empty strings
+                
+                # Store as JSON array if multiple, single string if one
+                if len(all_photos) > 1:
+                    grouped_sales[group_key]['recipient_photo'] = json.dumps(all_photos)
+                elif len(all_photos) == 1:
+                    grouped_sales[group_key]['recipient_photo'] = all_photos[0]
+                
+                print(f'📸 Combined photos for {group_key}: {len(all_photos)} photos')
+                
+        except Exception as e:
+            print(f'❌ Error combining photos for {group_key}: {e}')
             # On any error, keep existing photo selection
             pass
         
@@ -789,6 +842,16 @@ def get_grouped_transactions():
                 group['total_amount'] = float(total_str)
             except:
                 group['total_amount'] = 0.0
+        
+        # 🔥 OVERRIDE: Get photos directly from filesystem
+        filesystem_photos = get_customer_photos_from_filesystem(group['customer_name'], group['customer_phone'])
+        if filesystem_photos:
+            if len(filesystem_photos) > 1:
+                group['recipient_photo'] = json.dumps(filesystem_photos)
+                print(f"✅ Set {len(filesystem_photos)} photos for {group['customer_name']} from filesystem")
+            else:
+                group['recipient_photo'] = filesystem_photos[0]
+                print(f"✅ Set 1 photo for {group['customer_name']} from filesystem")
         
         result.append(group)
     
@@ -1335,6 +1398,60 @@ def update_transactions_by_customer():
         conn.close()
         print(f'Error updating transactions by customer: {str(e)}')
         return jsonify({'error': str(e)}), 400
+
+# Get all photos for a specific customer (simple and direct)
+@app.route('/api/customer-photos/<customer_name>/<customer_phone>', methods=['GET'])
+def get_customer_photos(customer_name, customer_phone):
+    """Get all photos for a specific customer from filesystem"""
+    import os
+    import glob
+    
+    try:
+        # Clean customer info for filename matching
+        clean_name = customer_name.replace(' ', '_')
+        clean_phone = customer_phone.replace('+', '').replace('(', '').replace(')', '').replace(' ', '')
+        customer_key = f"{clean_name}_{clean_phone}"
+        
+        # Look in the customer_photos folder
+        photos_folder = app.config['CUSTOMER_PHOTOS_FOLDER']
+        pattern = os.path.join(photos_folder, f"customer_{customer_key}_*.jpg")
+        
+        print(f"🔍 Looking for photos with pattern: {pattern}")
+        
+        # Find all matching photo files
+        photo_files = glob.glob(pattern)
+        photo_files.sort()  # Sort by filename (which includes timestamp)
+        
+        if photo_files:
+            # Convert to web-accessible paths
+            photo_urls = []
+            for file_path in photo_files:
+                filename = os.path.basename(file_path)
+                photo_urls.append(f"customer_photos/{filename}")
+            
+            print(f"✅ Found {len(photo_urls)} photos for {customer_name}: {photo_urls}")
+            return jsonify({
+                'success': True,
+                'photos': photo_urls,
+                'count': len(photo_urls)
+            })
+        else:
+            print(f"❌ No photos found for {customer_name} with pattern: {pattern}")
+            return jsonify({
+                'success': False,
+                'photos': [],
+                'count': 0,
+                'message': 'No photos found'
+            })
+            
+    except Exception as e:
+        print(f"❌ Error getting photos for {customer_name}: {e}")
+        return jsonify({
+            'success': False,
+            'photos': [],
+            'count': 0,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/cleanup-photos', methods=['POST'])
 def cleanup_photos():
