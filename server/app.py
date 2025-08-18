@@ -746,9 +746,9 @@ def get_grouped_transactions():
     grouped_sales = {}
     
     for trans in transactions:
-        # Create a unique key for grouping
+        # Create a unique key for grouping (excluding notes to prevent splitting on quantity updates)
         date_part = trans[7][:16] if trans[7] else ''  # transaction_date up to minutes
-        group_key = f"{trans[4] or 'Unknown'}_{trans[5] or ''}_{date_part}_{trans[8] or ''}"  # name_phone_date_notes
+        group_key = f"{trans[4] or 'Unknown'}_{trans[5] or ''}_{date_part}"  # name_phone_date (no notes)
         
         if group_key not in grouped_sales:
             grouped_sales[group_key] = {
@@ -1185,6 +1185,42 @@ def update_transaction(transaction_id):
                 WHERE barcode = ?
             ''', (quantity_difference, barcode))
             print(f'📦 Updated inventory for {barcode} by {-quantity_difference} (quantity changed from {old_quantity} to {quantity})')
+        
+        # IMPORTANT: Ensure ALL transactions for the same customer/date have consistent notes
+        # Check if this is part of a multi-item sale and update ALL related transactions
+        cursor.execute('''
+            SELECT COUNT(*) FROM transactions 
+            WHERE recipient_name = ? AND recipient_phone = ? 
+            AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
+        ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+        
+        transaction_count = cursor.fetchone()[0]
+        if transaction_count > 1:
+            # Multi-item sale - update ALL transactions to have consistent notes
+            cursor.execute('''
+                UPDATE transactions 
+                SET notes = 'Multi-Item Sale'
+                WHERE recipient_name = ? AND recipient_phone = ? 
+                AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
+            ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+            print(f'✅ Updated {cursor.rowcount} transactions to consistent Multi-Item Sale notes')
+        else:
+            # Single item sale - update to single item notes with total
+            product_mrp = None
+            cursor.execute('SELECT mrp FROM products WHERE barcode = ?', (barcode,))
+            product_result = cursor.fetchone()
+            if product_result:
+                product_mrp = product_result[0]
+            
+            if product_mrp:
+                total_amount = quantity * product_mrp
+                single_notes = f'Single item sale - Total: ₹{total_amount:.2f}'
+                cursor.execute('''
+                    UPDATE transactions 
+                    SET notes = ?
+                    WHERE id = ?
+                ''', (single_notes, transaction_id))
+                print(f'✅ Updated transaction to single item notes: {single_notes}')
         
         conn.commit()
         

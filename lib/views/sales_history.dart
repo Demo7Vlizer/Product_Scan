@@ -45,11 +45,13 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
           .where((t) => t.transactionType == 'OUT')
           .toList();
 
-      // Group transactions by product, customer, and date for multi-item sales
+      // Group transactions by customer, and date for multi-item sales (excluding notes to avoid split issues)
       final groupedSales = <String, List<Transaction>>{};
       
       for (final transaction in salesTransactions) {
-        final key = '${transaction.recipientName}_${transaction.transactionDate?.split(' ')[0]}_${transaction.notes}';
+        // Group by customer name, phone, and date (up to minutes) - excluding notes field
+        final datePart = transaction.transactionDate?.substring(0, 16) ?? ''; // YYYY-MM-DD HH:MM
+        final key = '${transaction.recipientName}_${transaction.recipientPhone ?? ''}_$datePart';
         if (!groupedSales.containsKey(key)) {
           groupedSales[key] = [];
         }
