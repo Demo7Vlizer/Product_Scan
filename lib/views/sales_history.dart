@@ -386,6 +386,24 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                   ),
                 ),
               if (sale.recipientPhoto != null && sale.recipientPhoto!.isNotEmpty) SizedBox(width: 8),
+              if (sale.customerNotes != null && sale.customerNotes!.isNotEmpty)
+                GestureDetector(
+                  onTap: () => _viewCustomerNotes(sale),
+                  child: Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange.shade200, width: 0.5),
+                    ),
+                    child: Icon(
+                      Icons.sticky_note_2_outlined,
+                      size: 16,
+                      color: Colors.orange.shade600,
+                    ),
+                  ),
+                ),
+              if (sale.customerNotes != null && sale.customerNotes!.isNotEmpty) SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _editSale(sale),
                 child: Container(
@@ -1099,5 +1117,121 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
         }
       }
     }
+  }
+
+  void _viewCustomerNotes(Transaction sale) {
+    if (sale.customerNotes == null || sale.customerNotes!.isEmpty) {
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+              maxWidth: 500,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      Icons.sticky_note_2,
+                      color: Colors.orange.shade600,
+                      size: 24,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Customer Notes',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            sale.recipientName ?? 'Unknown Customer',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: 16),
+                
+                // Notes content
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Text(
+                        sale.customerNotes!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(height: 16),
+                
+                // Close button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade600,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

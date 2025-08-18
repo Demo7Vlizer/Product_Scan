@@ -415,7 +415,7 @@ class InventoryController {
   }
 
   // Update customer information by phone number
-  Future<void> updateCustomerByPhone(String oldPhone, String newName, String newPhone) async {
+  Future<void> updateCustomerByPhone(String oldPhone, String newName, String newPhone, [String? notes]) async {
     try {
       var response = await http.put(
         Uri.parse('$_baseUrl/api/customers/phone/$oldPhone'),
@@ -423,6 +423,7 @@ class InventoryController {
         body: json.encode({
           'name': newName,
           'phone': newPhone,
+          'notes': notes,
         }),
       );
 

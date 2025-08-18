@@ -25,7 +25,7 @@ class _EditSalePageState extends State<EditSalePage> {
   // Customer data
   String? _selectedCustomerName;
   String? _selectedCustomerPhone;
-  String? _selectedCustomerAddress;
+  String? _selectedCustomerNotes;
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
   
@@ -58,6 +58,7 @@ class _EditSalePageState extends State<EditSalePage> {
     // Initialize customer data
     _selectedCustomerName = widget.sale.recipientName;
     _selectedCustomerPhone = widget.sale.recipientPhone;
+    _selectedCustomerNotes = widget.sale.customerNotes;
     _customerSearchController.text = _selectedCustomerName ?? '';
     
     // Check for existing photos
@@ -578,6 +579,20 @@ class _EditSalePageState extends State<EditSalePage> {
                     ),
                   ),
                   
+                  // Notes icon
+                  if (_selectedCustomerNotes != null && _selectedCustomerNotes!.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => _showCustomerNotes(_selectedCustomerName!, _selectedCustomerNotes!),
+                        child: Icon(
+                          Icons.sticky_note_2_outlined,
+                          color: Colors.orange.shade600,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  
                   // Edit and Delete buttons - Minimal
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -595,7 +610,7 @@ class _EditSalePageState extends State<EditSalePage> {
                           setState(() {
                             _selectedCustomerName = null;
                             _selectedCustomerPhone = null;
-                            _selectedCustomerAddress = null;
+                            _selectedCustomerNotes = null;
                             _customerSearchController.clear();
                           });
                         },
@@ -1430,7 +1445,7 @@ class _EditSalePageState extends State<EditSalePage> {
     setState(() {
       _selectedCustomerName = customer['name'];
       _selectedCustomerPhone = customer['phone'];
-      _selectedCustomerAddress = customer['address']; // Add address support
+      _selectedCustomerNotes = customer['notes']; // Add notes support
       _customerSearchController.text = _selectedCustomerName ?? '';
       _isSearching = false;
       _searchResults.clear();
@@ -2299,7 +2314,7 @@ class _EditSalePageState extends State<EditSalePage> {
   void _showEditCustomerDialog() {
     final nameController = TextEditingController(text: _selectedCustomerName ?? '');
     final phoneController = TextEditingController(text: _selectedCustomerPhone ?? '');
-    final addressController = TextEditingController(text: _selectedCustomerAddress ?? '');
+    final notesController = TextEditingController(text: _selectedCustomerNotes ?? '');
     
     showDialog(
       context: context,
@@ -2410,9 +2425,9 @@ class _EditSalePageState extends State<EditSalePage> {
                   
                   SizedBox(height: 12),
                   
-                  // Address Field (Optional)
+                  // Notes Field (Optional)
                   Text(
-                    'Address (Optional)',
+                    'Notes (Optional)',
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
@@ -2421,10 +2436,10 @@ class _EditSalePageState extends State<EditSalePage> {
                   ),
                   SizedBox(height: 6),
                   TextField(
-                    controller: addressController,
-                    maxLines: 2,
+                    controller: notesController,
+                    maxLines: 3,
                     decoration: InputDecoration(
-                      hintText: 'Enter address',
+                      hintText: 'Enter notes',
                       hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2477,10 +2492,10 @@ class _EditSalePageState extends State<EditSalePage> {
                           onPressed: () {
                             final newName = nameController.text.trim();
                             final newPhone = phoneController.text.trim();
-                            final newAddress = addressController.text.trim();
+                            final newNotes = notesController.text.trim();
                             
                             if (newName.isNotEmpty && newPhone.isNotEmpty) {
-                              _updateCustomerInfo(newName, newPhone, newAddress);
+                              _updateCustomerInfo(newName, newPhone, newNotes);
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -2527,14 +2542,14 @@ class _EditSalePageState extends State<EditSalePage> {
     );
   }
 
-  Future<void> _updateCustomerInfo(String newName, String newPhone, [String? newAddress]) async {
+  Future<void> _updateCustomerInfo(String newName, String newPhone, [String? newNotes]) async {
     try {
       // Store old phone for database update
       final oldPhone = _selectedCustomerPhone ?? '';
       
       // Update customer in database if they have an old phone number
       if (oldPhone.isNotEmpty) {
-        await _inventoryController.updateCustomerByPhone(oldPhone, newName, newPhone);
+        await _inventoryController.updateCustomerByPhone(oldPhone, newName, newPhone, newNotes);
       }
       
       // Update the UI
@@ -2542,7 +2557,7 @@ class _EditSalePageState extends State<EditSalePage> {
         setState(() {
           _selectedCustomerName = newName;
           _selectedCustomerPhone = newPhone;
-          _selectedCustomerAddress = newAddress;
+          _selectedCustomerNotes = newNotes;
           _customerSearchController.text = newName;
         });
         
@@ -2579,7 +2594,7 @@ class _EditSalePageState extends State<EditSalePage> {
         setState(() {
           _selectedCustomerName = newName;
           _selectedCustomerPhone = newPhone;
-          _selectedCustomerAddress = newAddress;
+          _selectedCustomerNotes = newNotes;
           _customerSearchController.text = newName;
         });
         
@@ -2612,6 +2627,118 @@ class _EditSalePageState extends State<EditSalePage> {
         );
       }
     }
+  }
+
+  void _showCustomerNotes(String customerName, String notes) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+              maxWidth: 500,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      Icons.sticky_note_2,
+                      color: Colors.orange.shade600,
+                      size: 24,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Customer Notes',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            customerName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: 16),
+                
+                // Notes content
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Text(
+                        notes,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(height: 16),
+                
+                // Close button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade600,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

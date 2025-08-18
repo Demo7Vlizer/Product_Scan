@@ -9,6 +9,7 @@ class Transaction {
   String? transactionDate;
   String? notes;
   String? productName;
+  String? customerNotes; // Customer notes from customers table
 
   Transaction({
     this.id,
@@ -21,6 +22,7 @@ class Transaction {
     this.transactionDate,
     this.notes,
     this.productName,
+    this.customerNotes,
   });
 
   Transaction.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,7 @@ class Transaction {
     transactionDate = json['transaction_date'];
     notes = json['notes'];
     productName = json['product_name'];
+    customerNotes = json['customer_notes'];
   }
 
   Map<String, dynamic> toJson() => {
@@ -47,5 +50,6 @@ class Transaction {
     'transaction_date': transactionDate,
     'notes': notes,
     'product_name': productName,
+    'customer_notes': customerNotes,
   };
 }

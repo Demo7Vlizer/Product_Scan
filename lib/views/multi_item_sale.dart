@@ -15,31 +15,27 @@ class Customer {
   final String? id;
   final String name;
   final String phone;
-  final String? address;
-  final String? email;
+  final String? notes;
 
   Customer({
     this.id,
     required this.name,
     required this.phone,
-    this.address,
-    this.email,
+    this.notes,
   });
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'phone': phone,
-        'address': address,
-        'email': email,
+        'notes': notes,
       };
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
         id: json['id']?.toString(),
         name: json['name'] ?? '',
         phone: json['phone'] ?? '',
-        address: json['address'],
-        email: json['email'],
+        notes: json['notes'],
       );
 }
 
@@ -294,6 +290,19 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
                                 ],
                               ),
                             ),
+                            // Notes icon
+                            if (_selectedCustomer!.notes != null && _selectedCustomer!.notes!.isNotEmpty)
+                              Padding(
+                                padding: EdgeInsets.only(right: _isTablet ? 8 : 4),
+                                child: GestureDetector(
+                                  onTap: () => _showCustomerNotes(_selectedCustomer!.name, _selectedCustomer!.notes!),
+                                  child: Icon(
+                                    Icons.sticky_note_2_outlined,
+                                    color: Colors.orange.shade600,
+                                    size: _isTablet ? 24 : 20,
+                                  ),
+                                ),
+                              ),
                   IconButton(
                     icon: Icon(Icons.close, size: _isTablet ? 22 : 18),
                     onPressed: () => setState(() => _selectedCustomer = null),
@@ -1098,6 +1107,118 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
     }
   }
 
+  void _showCustomerNotes(String customerName, String notes) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(_isTablet ? 20 : 16),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(_isTablet ? 24 : 20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+              maxWidth: _isTablet ? 500 : double.infinity,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      Icons.sticky_note_2,
+                      color: Colors.orange.shade600,
+                      size: _isTablet ? 28 : 24,
+                    ),
+                    SizedBox(width: _isTablet ? 12 : 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Customer Notes',
+                            style: TextStyle(
+                              fontSize: _isTablet ? 20 : 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            customerName,
+                            style: TextStyle(
+                              fontSize: _isTablet ? 14 : 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close),
+                      iconSize: _isTablet ? 24 : 20,
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: _isTablet ? 20 : 16),
+                
+                // Notes content
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(_isTablet ? 16 : 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(_isTablet ? 12 : 8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Text(
+                        notes,
+                        style: TextStyle(
+                          fontSize: _isTablet ? 16 : 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(height: _isTablet ? 20 : 16),
+                
+                // Close button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade600,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: _isTablet ? 20 : 16,
+                        vertical: _isTablet ? 12 : 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(_isTablet ? 10 : 8),
+                      ),
+                    ),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(fontSize: _isTablet ? 16 : 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Product Scanning and Cart Management
   void _scanProduct() async {
     await Navigator.push(
@@ -1535,16 +1656,14 @@ class _CreateCustomerDialogState extends State<_CreateCustomerDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _notesController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
-    _emailController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -1627,9 +1746,9 @@ class _CreateCustomerDialogState extends State<_CreateCustomerDialog> {
                       SizedBox(height: widget.isTablet ? 20 : 16),
                       
                       TextFormField(
-              controller: _addressController,
+              controller: _notesController,
                         decoration: InputDecoration(
-                labelText: 'Address (Optional)',
+                labelText: 'Notes (Optional)',
                           labelStyle: TextStyle(fontSize: widget.isTablet ? 16 : 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(widget.isTablet ? 12 : 8),
@@ -1640,25 +1759,9 @@ class _CreateCustomerDialogState extends State<_CreateCustomerDialog> {
                           ),
                         ),
                         style: TextStyle(fontSize: widget.isTablet ? 16 : 14),
-              maxLines: 2,
-                      ),
-                      SizedBox(height: widget.isTablet ? 20 : 16),
-                      
-                      TextFormField(
-              controller: _emailController,
-                        decoration: InputDecoration(
-                labelText: 'Email (Optional)',
-                          labelStyle: TextStyle(fontSize: widget.isTablet ? 16 : 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(widget.isTablet ? 12 : 8),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: widget.isTablet ? 16 : 12,
-                            vertical: widget.isTablet ? 16 : 12,
-                          ),
-                        ),
-                        style: TextStyle(fontSize: widget.isTablet ? 16 : 14),
-              keyboardType: TextInputType.emailAddress,
+              maxLines: 3,
+              textInputAction: TextInputAction.newline,
+              keyboardType: TextInputType.multiline,
                         ),
                     ],
                   ),
@@ -1719,6 +1822,8 @@ class _CreateCustomerDialogState extends State<_CreateCustomerDialog> {
     );
   }
 
+
+
   void _createCustomer() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -1728,8 +1833,7 @@ class _CreateCustomerDialogState extends State<_CreateCustomerDialog> {
                 final customerData = {
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
                 };
                 
                 await widget.inventoryController.addCustomer(customerData);
@@ -1737,8 +1841,7 @@ class _CreateCustomerDialogState extends State<_CreateCustomerDialog> {
                 final customer = Customer(
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
-        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
                 );
                 Navigator.pop(context, customer);
               } catch (e) {

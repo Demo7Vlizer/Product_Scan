@@ -83,11 +83,52 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             phone TEXT UNIQUE NOT NULL,
-            address TEXT,
-            email TEXT,
+            notes TEXT,
             created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Add migration for existing customers table to add notes column and remove address/email
+    try:
+        cursor.execute("ALTER TABLE customers ADD COLUMN notes TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists or table doesn't exist
+    
+    # Check if old columns exist and migrate data if needed
+    cursor.execute("PRAGMA table_info(customers)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    if 'address' in columns or 'email' in columns:
+        # Create new table with correct structure
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS customers_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                phone TEXT UNIQUE NOT NULL,
+                notes TEXT,
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Copy data from old table to new table, combining address and email into notes
+        cursor.execute('''
+            INSERT INTO customers_new (id, name, phone, notes, created_date)
+            SELECT id, name, phone, 
+                   CASE 
+                       WHEN address IS NOT NULL AND email IS NOT NULL THEN 'Address: ' || address || '\nEmail: ' || email
+                       WHEN address IS NOT NULL THEN 'Address: ' || address
+                       WHEN email IS NOT NULL THEN 'Email: ' || email
+                       ELSE NULL
+                   END as notes,
+                   created_date
+            FROM customers
+        ''')
+        
+        # Drop old table and rename new table
+        cursor.execute('DROP TABLE customers')
+        cursor.execute('ALTER TABLE customers_new RENAME TO customers')
+    
+    conn.commit()
     
     # Product Location Photos table
     cursor.execute('''
@@ -662,18 +703,20 @@ def get_transactions():
     if barcode_filter:
         # Filter by specific barcode
         cursor.execute('''
-            SELECT t.*, p.name as product_name 
+            SELECT t.*, p.name as product_name, c.notes as customer_notes
             FROM transactions t 
             LEFT JOIN products p ON t.barcode = p.barcode 
+            LEFT JOIN customers c ON t.recipient_phone = c.phone
             WHERE t.barcode = ?
             ORDER BY transaction_date DESC
         ''', (barcode_filter,))
     else:
         # Get all transactions
         cursor.execute('''
-            SELECT t.*, p.name as product_name 
+            SELECT t.*, p.name as product_name, c.notes as customer_notes
             FROM transactions t 
             LEFT JOIN products p ON t.barcode = p.barcode 
+            LEFT JOIN customers c ON t.recipient_phone = c.phone
             ORDER BY transaction_date DESC
         ''')
     
@@ -692,7 +735,8 @@ def get_transactions():
             'recipient_photo': trans[6],
             'transaction_date': trans[7],
             'notes': trans[8],
-            'product_name': trans[9]
+            'product_name': trans[9],
+            'customer_notes': trans[10] if len(trans) > 10 else None
         })
     
     return jsonify({'Result': transaction_list})
@@ -733,9 +777,10 @@ def get_grouped_transactions():
     conn = sqlite3.connect('inventory.db')
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT t.*, p.name as product_name 
+        SELECT t.*, p.name as product_name, c.notes as customer_notes
         FROM transactions t 
         LEFT JOIN products p ON t.barcode = p.barcode 
+        LEFT JOIN customers c ON t.recipient_phone = c.phone
         WHERE t.transaction_type = 'OUT'
         ORDER BY t.transaction_date DESC, t.id DESC
     ''')
@@ -758,6 +803,7 @@ def get_grouped_transactions():
                 'recipient_photo': '',  # decide below with replacement rules
                 'transaction_date': trans[7],
                 'notes': trans[8] or '',
+                'customer_notes': trans[10] or '',  # Customer notes from customers table
                 'items': [],
                 'total_quantity': 0,
                 'total_amount': 0.0,
@@ -1395,6 +1441,7 @@ def update_customer_by_phone(phone):
     data = request.get_json()
     new_name = data.get('name')
     new_phone = data.get('phone')
+    new_notes = data.get('notes')
     
     if new_name is None or new_phone is None:
         return jsonify({'error': 'Name and phone are required'}), 400
@@ -1403,9 +1450,9 @@ def update_customer_by_phone(phone):
         # Update customer information
         cursor.execute('''
             UPDATE customers 
-            SET name = ?, phone = ?
+            SET name = ?, phone = ?, notes = ?
             WHERE phone = ?
-        ''', (new_name, new_phone, phone))
+        ''', (new_name, new_phone, new_notes, phone))
         
         # Also update all transactions with this customer
         cursor.execute('''
@@ -1706,9 +1753,8 @@ def get_customers():
             'id': customer[0],
             'name': customer[1],
             'phone': customer[2],
-            'address': customer[3],
-            'email': customer[4],
-            'created_date': customer[5]
+            'notes': customer[3],
+            'created_date': customer[4]
         })
     
     return jsonify({'Result': customer_list})
@@ -1731,9 +1777,8 @@ def search_customers(query):
             'id': customer[0],
             'name': customer[1],
             'phone': customer[2],
-            'address': customer[3],
-            'email': customer[4],
-            'created_date': customer[5]
+            'notes': customer[3],
+            'created_date': customer[4]
         })
     
     return jsonify({'Result': customer_list})
@@ -1747,13 +1792,12 @@ def add_customer():
     
     try:
         cursor.execute('''
-            INSERT INTO customers (name, phone, address, email)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO customers (name, phone, notes)
+            VALUES (?, ?, ?)
         ''', (
             data['name'],
             data['phone'],
-            data.get('address'),
-            data.get('email')
+            data.get('notes')
         ))
         
         customer_id = cursor.lastrowid
@@ -1781,13 +1825,12 @@ def update_customer(customer_id):
     try:
         cursor.execute('''
             UPDATE customers 
-            SET name = ?, phone = ?, address = ?, email = ?
+            SET name = ?, phone = ?, notes = ?
             WHERE id = ?
         ''', (
             data['name'],
             data['phone'],
-            data.get('address'),
-            data.get('email'),
+            data.get('notes'),
             customer_id
         ))
         
