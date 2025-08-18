@@ -340,6 +340,7 @@ class InventoryController {
     required String recipientPhone,
     required int quantity,
     String? recipientPhoto,
+    String? userNotes,
   }) async {
     try {
       final Map<String, dynamic> requestBody = {
@@ -351,6 +352,11 @@ class InventoryController {
       // Only include photo if provided
       if (recipientPhoto != null) {
         requestBody['recipient_photo'] = recipientPhoto;
+      }
+      
+      // Only include user notes if provided
+      if (userNotes != null) {
+        requestBody['user_notes'] = userNotes;
       }
       
       var response = await http.put(
@@ -472,6 +478,7 @@ class InventoryController {
     required String recipientPhone,
     required int quantity,
     String? recipientPhoto,
+    String? userNotes,
   }) async {
     try {
       // First try individual transaction update
@@ -481,6 +488,7 @@ class InventoryController {
         recipientPhone: recipientPhone,
         quantity: quantity,
         recipientPhoto: recipientPhoto,
+        userNotes: userNotes,
       );
       print('✅ Successfully updated transaction $transactionId with quantity: $quantity');
     } catch (e) {

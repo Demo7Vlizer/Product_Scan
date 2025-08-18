@@ -3561,16 +3561,16 @@
                             <div style="max-height: 300px; overflow-y: auto;">
                                 ${transactions.length > 0 ? 
                                     transactions.map(transaction => `
-                                        <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid ${transaction.transaction_type === 'in' ? '#28a745' : '#dc3545'}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                        <div style="background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid ${transaction.transaction_type === 'IN' ? '#28a745' : '#dc3545'}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                                 <div style="display: flex; align-items: center;">
-                                                    <i class="fas fa-${transaction.transaction_type === 'in' ? 'plus' : 'minus'}-circle" style="color: ${transaction.transaction_type === 'in' ? '#28a745' : '#dc3545'}; margin-right: 8px;"></i>
+                                                    <i class="fas fa-${transaction.transaction_type === 'IN' ? 'plus' : 'minus'}-circle" style="color: ${transaction.transaction_type === 'IN' ? '#28a745' : '#dc3545'}; margin-right: 8px;"></i>
                                                     <span style="font-weight: bold; color: #333; text-transform: capitalize;">
-                                                        ${transaction.transaction_type === 'in' ? 'Stock Added' : 'Sale'}
+                                                        ${transaction.transaction_type === 'IN' ? 'Stock Added' : 'Sale'}
                                                     </span>
                                                 </div>
-                                                <span style="background: ${transaction.transaction_type === 'in' ? '#28a745' : '#dc3545'}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
-                                                    ${transaction.transaction_type === 'in' ? '+' : '-'}${transaction.quantity}
+                                                <span style="background: ${transaction.transaction_type === 'IN' ? '#28a745' : '#dc3545'}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                                                    ${transaction.transaction_type === 'IN' ? '+' : '-'}${transaction.quantity}
                                                 </span>
                                             </div>
                                             <div style="color: #666; font-size: 14px;">

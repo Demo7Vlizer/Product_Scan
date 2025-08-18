@@ -64,6 +64,7 @@ class MultiItemSalePage extends StatefulWidget {
 class _MultiItemSalePageState extends State<MultiItemSalePage> {
   final InventoryController _inventoryController = InventoryController();
   final TextEditingController _customerSearchController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
@@ -88,6 +89,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
   @override
   void dispose() {
     _customerSearchController.dispose();
+    _notesController.dispose();
     _searchTimer?.cancel();
     super.dispose();
   }
@@ -142,7 +144,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
   Widget _buildTabletLandscapeLayout() {
     return Row(
       children: [
-        // Left Panel - Customer & Photo
+        // Left Panel - Customer, Notes & Photo
         Expanded(
           flex: 1,
           child: Container(
@@ -150,7 +152,9 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
         child: Column(
               children: [
                 _buildCustomerSection(),
-                SizedBox(height: _isTablet ? 24 : 16),
+                SizedBox(height: _isTablet ? 16 : 12),
+                _buildNotesSection(),
+                SizedBox(height: _isTablet ? 16 : 12),
                 _buildCompactPhotoSection(),
               ],
             ),
@@ -173,6 +177,9 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
           children: [
             // Customer Selection Section
             _buildCustomerSection(),
+            
+            // Notes Section
+            _buildNotesSection(),
             
             // Cart Section with Photo
             Expanded(
@@ -358,6 +365,81 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
                 ],
               ],
             ),
+    );
+  }
+
+  Widget _buildNotesSection() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: _isTablet ? 20 : 16),
+      padding: EdgeInsets.all(_isTablet ? 20 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(_isTablet ? 16 : 12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: _isTablet ? 15 : 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.edit_note,
+                color: Colors.orange.shade600,
+                size: _isTablet ? 24 : 20,
+              ),
+              SizedBox(width: _isTablet ? 12 : 8),
+              Text(
+                'Sale Notes',
+                style: TextStyle(
+                  fontSize: _isTablet ? 18 : 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: _isTablet ? 16 : 12),
+          TextField(
+            controller: _notesController,
+            decoration: InputDecoration(
+              hintText: 'Add notes for this sale...',
+              hintStyle: TextStyle(
+                fontSize: _isTablet ? 14 : 13,
+                color: Colors.grey.shade500,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(_isTablet ? 12 : 8),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(_isTablet ? 12 : 8),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(_isTablet ? 12 : 8),
+                borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: _isTablet ? 16 : 12,
+                vertical: _isTablet ? 12 : 10,
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            style: TextStyle(fontSize: _isTablet ? 15 : 14),
+            maxLines: 3,
+            minLines: 1,
+            textInputAction: TextInputAction.newline,
+            keyboardType: TextInputType.multiline,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1303,6 +1385,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
             onPressed: () {
               setState(() {
                 _cartItems.clear();
+                _notesController.clear();
               });
               Navigator.pop(context);
               _showInfoSnackBar('Cart cleared');
@@ -1543,6 +1626,14 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
 
     try {
       // Process each item as a separate transaction
+      final userNotes = _notesController.text.trim();
+      final baseNotes = _cartItems.length > 1 
+          ? 'Multi-item sale - Total: ₹${_calculateTotal().toStringAsFixed(2)}'
+          : 'Single item sale - ₹${_calculateTotal().toStringAsFixed(2)}';
+      final finalNotes = userNotes.isNotEmpty 
+          ? '$baseNotes\nNotes: $userNotes'
+          : baseNotes;
+
       for (final item in _cartItems) {
         final transaction = Transaction(
           barcode: item.product.barcode,
@@ -1551,7 +1642,7 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
           recipientName: _selectedCustomer!.name,
           recipientPhone: _selectedCustomer!.phone,
           recipientPhoto: _salePhotosBase64.isNotEmpty ? jsonEncode(_salePhotosBase64) : null,
-          notes: 'Multi-item sale - Total: ₹${_calculateTotal().toStringAsFixed(2)}',
+          notes: finalNotes,
         );
 
         await _inventoryController.addTransaction(transaction);
@@ -1560,12 +1651,13 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
       // Show success message
       _showSuccessSnackBar('Sale completed successfully!');
 
-      // Clear cart, photo, and return
+      // Clear cart, photo, notes, and return
       setState(() {
         _cartItems.clear();
         _selectedCustomer = null;
         _salePhotoFiles.clear();
         _salePhotosBase64.clear();
+        _notesController.clear();
       });
 
       Navigator.pop(context, true);
@@ -1618,13 +1710,15 @@ class _MultiItemSalePageState extends State<MultiItemSalePage> {
           children: [
             const Text('1. Search and select a customer'),
             const SizedBox(height: 8),
-            const Text('2. Scan products to add to cart'),
+            const Text('2. Add notes for this sale (optional)'),
             const SizedBox(height: 8),
-            const Text('3. Adjust quantities as needed'),
+            const Text('3. Scan products to add to cart'),
             const SizedBox(height: 8),
-            const Text('4. Optionally add a sale photo'),
+            const Text('4. Adjust quantities as needed'),
             const SizedBox(height: 8),
-            const Text('5. Complete the sale'),
+            const Text('5. Optionally add a sale photo'),
+            const SizedBox(height: 8),
+            const Text('6. Complete the sale'),
           ],
         ),
         actions: [

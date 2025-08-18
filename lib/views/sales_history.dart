@@ -85,6 +85,21 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
 
           print('Multi-item sale photo: ${firstItem.recipientPhoto != null ? "HAS PHOTO" : "NO PHOTO"} for ${firstItem.recipientName}');
 
+          // Find user notes from any transaction in the group
+          String? userNotes;
+          for (final transaction in group) {
+            if (transaction.notes?.contains('\nNotes: ') == true) {
+              final notesStart = transaction.notes!.indexOf('\nNotes: ') + 8;
+              userNotes = transaction.notes!.substring(notesStart);
+              break; // Use the first user notes found
+            }
+          }
+          
+          // Build notes for multi-item sale
+          final combinedNotes = userNotes != null 
+              ? 'Multi-item sale\nNotes: $userNotes'
+              : 'Multi-item sale';
+
           final combinedSale = Transaction(
             id: firstItem.id,
             barcode: 'multi-item',
@@ -94,7 +109,7 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
             recipientPhone: firstItem.recipientPhone,
             recipientPhoto: firstItem.recipientPhoto, // ✅ Include photo!
             transactionDate: firstItem.transactionDate,
-            notes: 'Multi-Item Sale',
+            notes: combinedNotes,
             productName: topProduct,
           );
           
@@ -261,7 +276,8 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
   }
 
   Widget _buildSaleCard(Transaction sale) {
-    final isMultiItem = sale.notes == 'Multi-Item Sale';
+    final isMultiItem = sale.notes?.contains('Multi-item sale') == true;
+    final hasUserNotes = sale.notes?.contains('\nNotes: ') == true;
     
     return Container(
       margin: EdgeInsets.only(bottom: 8),
@@ -404,6 +420,24 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
                   ),
                 ),
               if (sale.customerNotes != null && sale.customerNotes!.isNotEmpty) SizedBox(width: 8),
+              if (hasUserNotes)
+                GestureDetector(
+                  onTap: () => _showSaleNotesDialog(sale),
+                  child: Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.blue.shade200, width: 0.5),
+                    ),
+                    child: Icon(
+                      Icons.edit_note_outlined,
+                      size: 16,
+                      color: Colors.blue.shade600,
+                    ),
+                  ),
+                ),
+              if (hasUserNotes) SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _editSale(sale),
                 child: Container(
@@ -1117,6 +1151,124 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
         }
       }
     }
+  }
+
+  void _showSaleNotesDialog(Transaction sale) {
+    // Extract user notes from transaction notes
+    String? userNotes;
+    if (sale.notes?.contains('\nNotes: ') == true) {
+      final notesStart = sale.notes!.indexOf('\nNotes: ') + 8;
+      userNotes = sale.notes!.substring(notesStart);
+    }
+
+    if (userNotes == null || userNotes.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(20),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+              maxWidth: 500,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.edit_note,
+                      color: Colors.blue.shade600,
+                      size: 24,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sale Notes',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            sale.recipientName ?? 'Unknown Customer',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: 16),
+                
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Text(
+                        userNotes!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(height: 16),
+                
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _viewCustomerNotes(Transaction sale) {

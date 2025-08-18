@@ -44,6 +44,22 @@ def get_local_timestamp():
     ist = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(ist).strftime('%Y-%m-%d %H:%M:%S')
 
+def build_transaction_notes(transaction_count, total_amount=None, user_notes=None):
+    """Build transaction notes with system info and user notes"""
+    if transaction_count > 1:
+        base_notes = 'Multi-item sale'
+        if total_amount:
+            base_notes += f' - Total: ₹{total_amount:.2f}'
+    else:
+        base_notes = 'Single item sale'
+        if total_amount:
+            base_notes += f' - ₹{total_amount:.2f}'
+    
+    if user_notes and user_notes.strip():
+        return f'{base_notes}\nNotes: {user_notes.strip()}'
+    else:
+        return base_notes
+
 # Database setup
 def init_db():
     conn = sqlite3.connect('inventory.db')
@@ -660,10 +676,10 @@ def add_transaction():
                 else:
                     processed_photo = recipient_photo
         
-        # Add transaction record with processed photo
+        # Add transaction record with processed photo and local timestamp
         cursor.execute('''
-            INSERT INTO transactions (barcode, transaction_type, quantity, recipient_name, recipient_phone, recipient_photo, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO transactions (barcode, transaction_type, quantity, recipient_name, recipient_phone, recipient_photo, notes, transaction_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['barcode'],
             data['transaction_type'],
@@ -671,7 +687,8 @@ def add_transaction():
             data.get('recipient_name'),
             data.get('recipient_phone'),
             processed_photo,
-            data.get('notes')
+            data.get('notes'),
+            get_local_timestamp()
         ))
         
         # Update product quantity
@@ -960,9 +977,9 @@ def bulk_update_transactions():
             if not transaction_id:
                 # Create new transaction
                 cursor.execute('''
-                    INSERT INTO transactions (barcode, transaction_type, quantity, recipient_name, recipient_phone, notes)
-                    VALUES (?, 'OUT', ?, ?, ?, 'Added from edit')
-                ''', (barcode, quantity, recipient_name, recipient_phone))
+                    INSERT INTO transactions (barcode, transaction_type, quantity, recipient_name, recipient_phone, notes, transaction_date)
+                    VALUES (?, 'OUT', ?, ?, ?, 'Added from edit', ?)
+                ''', (barcode, quantity, recipient_name, recipient_phone, get_local_timestamp()))
                 new_id = cursor.lastrowid
                 
                 # Update inventory for new transaction (reduce stock)
@@ -1050,6 +1067,7 @@ def update_transaction(transaction_id):
     recipient_phone = data.get('recipient_phone')
     quantity = data.get('quantity')
     recipient_photo = data.get('recipient_photo')
+    user_notes = data.get('user_notes')
     
     try:
         print(f'Updating transaction {transaction_id} for {recipient_name}')
@@ -1165,13 +1183,13 @@ def update_transaction(transaction_id):
                 transaction_count = cursor.fetchone()[0]
                 if transaction_count > 1:
                     # Multi-item sale - update all transactions to have consistent notes
+                    new_notes = build_transaction_notes(transaction_count, user_notes=user_notes)
                     cursor.execute('''
                         UPDATE transactions 
-                        SET notes = 'Multi-Item Sale'
+                        SET notes = ?
                         WHERE recipient_name = ? AND recipient_phone = ? 
                         AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
-                        AND notes != 'Multi-Item Sale'
-                    ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+                    ''', (new_notes, recipient_name, recipient_phone, transaction_date, transaction_date))
                     updated_notes_count = cursor.rowcount
                     if updated_notes_count > 0:
                         print(f'Updated {updated_notes_count} transactions to Multi-Item Sale notes')
@@ -1207,13 +1225,13 @@ def update_transaction(transaction_id):
                 transaction_count = cursor.fetchone()[0]
                 if transaction_count > 1:
                     # Multi-item sale - update all transactions to have consistent notes
+                    new_notes = build_transaction_notes(transaction_count, user_notes=user_notes)
                     cursor.execute('''
                         UPDATE transactions 
-                        SET notes = 'Multi-Item Sale'
+                        SET notes = ?
                         WHERE recipient_name = ? AND recipient_phone = ? 
                         AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
-                        AND notes != 'Multi-Item Sale'
-                    ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+                    ''', (new_notes, recipient_name, recipient_phone, transaction_date, transaction_date))
                     updated_notes_count = cursor.rowcount
                     if updated_notes_count > 0:
                         print(f'Updated {updated_notes_count} transactions to Multi-Item Sale notes (non-photo path)')
@@ -1243,12 +1261,13 @@ def update_transaction(transaction_id):
         transaction_count = cursor.fetchone()[0]
         if transaction_count > 1:
             # Multi-item sale - update ALL transactions to have consistent notes
+            new_notes = build_transaction_notes(transaction_count, user_notes=user_notes)
             cursor.execute('''
                 UPDATE transactions 
-                SET notes = 'Multi-Item Sale'
+                SET notes = ?
                 WHERE recipient_name = ? AND recipient_phone = ? 
                 AND datetime(transaction_date) BETWEEN datetime(?) AND datetime(?, '+1 minute')
-            ''', (recipient_name, recipient_phone, transaction_date, transaction_date))
+            ''', (new_notes, recipient_name, recipient_phone, transaction_date, transaction_date))
             print(f'✅ Updated {cursor.rowcount} transactions to consistent Multi-Item Sale notes')
         else:
             # Single item sale - update to single item notes with total
@@ -1260,7 +1279,7 @@ def update_transaction(transaction_id):
             
             if product_mrp:
                 total_amount = quantity * product_mrp
-                single_notes = f'Single item sale - Total: ₹{total_amount:.2f}'
+                single_notes = build_transaction_notes(1, total_amount, user_notes)
                 cursor.execute('''
                     UPDATE transactions 
                     SET notes = ?

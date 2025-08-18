@@ -21,6 +21,7 @@ class EditSalePage extends StatefulWidget {
 class _EditSalePageState extends State<EditSalePage> {
   final InventoryController _inventoryController = InventoryController();
   final TextEditingController _customerSearchController = TextEditingController();
+  final TextEditingController _saleNotesController = TextEditingController();
   
   // Customer data
   String? _selectedCustomerName;
@@ -51,6 +52,7 @@ class _EditSalePageState extends State<EditSalePage> {
   @override
   void dispose() {
     _customerSearchController.dispose();
+    _saleNotesController.dispose();
     super.dispose();
   }
 
@@ -60,6 +62,9 @@ class _EditSalePageState extends State<EditSalePage> {
     _selectedCustomerPhone = widget.sale.recipientPhone;
     _selectedCustomerNotes = widget.sale.customerNotes;
     _customerSearchController.text = _selectedCustomerName ?? '';
+    
+    // Initialize sale notes (extract user notes from the transaction notes)
+    _initializeSaleNotes();
     
     // Check for existing photos
     if (widget.sale.recipientPhoto != null && widget.sale.recipientPhoto!.isNotEmpty) {
@@ -81,6 +86,20 @@ class _EditSalePageState extends State<EditSalePage> {
     
     // Load all items from this sale (by matching customer and date)
     _loadSaleItems();
+  }
+
+  void _initializeSaleNotes() {
+    // Extract user notes from transaction notes
+    final currentNotes = widget.sale.notes ?? '';
+    
+    // Look for pattern: "Notes: " and extract everything after it
+    if (currentNotes.contains('\nNotes: ')) {
+      final notesStart = currentNotes.indexOf('\nNotes: ') + 8; // 8 = length of "\nNotes: "
+      final userNotes = currentNotes.substring(notesStart);
+      _saleNotesController.text = userNotes;
+    } else {
+      _saleNotesController.text = '';
+    }
   }
 
   void _updateItemQuantity(SaleItem item, int newQuantity) {
@@ -465,6 +484,11 @@ class _EditSalePageState extends State<EditSalePage> {
                     
                     SizedBox(height: 16),
                     
+                    // Sale Notes Section
+                    _buildSaleNotesSection(),
+                    
+                    SizedBox(height: 16),
+                    
                     // Grand Total Section
                     _buildGrandTotalSection(),
                     
@@ -590,8 +614,8 @@ class _EditSalePageState extends State<EditSalePage> {
                           color: Colors.orange.shade600,
                           size: 20,
                         ),
-                      ),
                     ),
+                  ),
                   
                   // Edit and Delete buttons - Minimal
                   Row(
@@ -651,6 +675,74 @@ class _EditSalePageState extends State<EditSalePage> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaleNotesSection() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade100, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.edit_note,
+                color: Colors.orange.shade600,
+                size: 20,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Sale Notes',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          TextField(
+            controller: _saleNotesController,
+            decoration: InputDecoration(
+              hintText: 'Add notes for this sale...',
+              hintStyle: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade500,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            style: TextStyle(fontSize: 14),
+            maxLines: 3,
+            minLines: 1,
+            textInputAction: TextInputAction.newline,
+            keyboardType: TextInputType.multiline,
+          ),
         ],
       ),
     );
@@ -2121,14 +2213,25 @@ class _EditSalePageState extends State<EditSalePage> {
               photosChanged = true;
             }
             
-            print('🔍 Photo comparison: quantityDiff=$quantityDifference, photosChanged=$photosChanged');
+            // Check if notes have changed
+            final currentUserNotes = _saleNotesController.text.trim();
+            String? originalUserNotes;
+            if (widget.sale.notes?.contains('\nNotes: ') == true) {
+              final notesStart = widget.sale.notes!.indexOf('\nNotes: ') + 8;
+              originalUserNotes = widget.sale.notes!.substring(notesStart);
+            }
+            final notesChanged = currentUserNotes != (originalUserNotes ?? '');
+            
+            print('🔍 Photo comparison: quantityDiff=$quantityDifference, photosChanged=$photosChanged, notesChanged=$notesChanged');
             print('📸 Original photos: ${widget.sale.recipientPhoto}');
             print('📸 Current photos: $photosToSend');
+            print('📝 Original notes: "$originalUserNotes" -> Current notes: "$currentUserNotes"');
             
-            if (quantityDifference != 0 || photosChanged) {
+            if (quantityDifference != 0 || photosChanged || notesChanged) {
               print('🔄 Processing changes for ${item.productName}:');
               print('   - Quantity change: ${item.originalQuantity} -> ${item.quantity} (diff: $quantityDifference)');
               print('   - Photos changed: $photosChanged');
+              print('   - Notes changed: $notesChanged');
               
               // Update the transaction in database (with safe handling for missing IDs)
               await _inventoryController.updateTransactionSafe(
@@ -2137,6 +2240,7 @@ class _EditSalePageState extends State<EditSalePage> {
                 recipientPhone: _selectedCustomerPhone ?? '',
                 quantity: item.quantity,
                 recipientPhoto: photosToSend,
+                userNotes: _saleNotesController.text.trim().isNotEmpty ? _saleNotesController.text.trim() : null,
               );
               
               // Note: Inventory adjustment is handled by the server-side API
@@ -2160,14 +2264,20 @@ class _EditSalePageState extends State<EditSalePage> {
           try {
             print('Creating new transaction for ${item.productName}');
             // Determine appropriate notes to link this item to the original sale
+            final userNotes = _saleNotesController.text.trim();
             String saleNotes;
             if (_saleItems.length > 1) {
               // Multi-item sale - use consistent multi-item sale notes
-              saleNotes = 'Multi-Item Sale';
+              saleNotes = userNotes.isNotEmpty 
+                  ? 'Multi-item sale\nNotes: $userNotes'
+                  : 'Multi-item sale';
             } else {
               // Single item sale - calculate total for single item notes
               double totalAmount = item.quantity * item.mrp;
-              saleNotes = 'Single item sale - Total: ₹${totalAmount.toStringAsFixed(2)}';
+              final baseNotes = 'Single item sale - ₹${totalAmount.toStringAsFixed(2)}';
+              saleNotes = userNotes.isNotEmpty 
+                  ? '$baseNotes\nNotes: $userNotes'
+                  : baseNotes;
             }
             
             final transaction = Transaction(
